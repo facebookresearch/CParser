@@ -1226,7 +1226,7 @@ processDirectives = function(options, macros, lines, ...)
 	 end
       end
    end
-   local function doDefmacro(ti,recursive)
+   local function doDefmacro(ti)
       xassert(isIdentifier(ti()), options, n, "symbol expected after #defmacro")
       local nam,nn = tok,n
       xassert(ti()=='(', options, n, "argument list expected in #defmacro")
@@ -1234,7 +1234,7 @@ processDirectives = function(options, macros, lines, ...)
       xassert(not tok, options, n, "garbage after argument list in #defmacro")
       -- collect definition
       local lines = {}
-      local def = { args = args, lines = lines, recursive = recursive }
+      local def = { args=args, lines=lines, recursive=(dirtok=="defrecursivemacro") }
       local r = doMacroLines(lines,"endmacro")
       lines[#lines] = nil
       lines[#lines] = nil
@@ -1251,11 +1251,9 @@ processDirectives = function(options, macros, lines, ...)
       end
       macros[nam] = def
    end
-   local function doDefrecursivemacro(ti)
-      return doDefmacro(ti, true)
-   end
    -- include
    local function doInclude(ti)
+      local incnext = ( dirtok=="include_next" )
       -- get filename
       local pti = wrap(options, expandMacros, macros, yieldFromIterator, ti)
       local tok = pti()
@@ -1271,8 +1269,9 @@ processDirectives = function(options, macros, lines, ...)
 	 if v == "-I-" then
 	    sys=false
 	 elseif v:find("^%-I") and not sys then
-	    pname = v:match("^%-I%s*(.*)") .. '/' .. fname
+            pname = v:match("^%-I%s*(.*)") .. '/' .. fname
 	    fd = io.open(pname, "r")
+            if fd and incnext then fd:close() fd=nil incnext=false end -- incorrect
 	    if fd then break end
 	 end
       end
@@ -1356,9 +1355,9 @@ processDirectives = function(options, macros, lines, ...)
       ["error"] = doMessage, ["warning"] = doMessage,
       ["if"] = doIf, ["ifdef"] = doIfdef, ["ifndef"] = doIfdef,
       ["define"] = doDefine, ["undef"] = doUndef,
-      ["defmacro"] = doDefmacro, ["defrecursivemacro"] = doDefrecursivemacro,
-      ["endmacro"] = doError, ["include"] = doInclude,
-      ["include_next"] = doIgnore, -- for now
+      ["defmacro"] = doDefmacro, ["defrecursivemacro"] = doDefmacro,
+      ["endmacro"] = doError, 
+      ["include"] = doInclude, ["include_next"] = doInclude,
    }
    -- process current line
    processLine = function(okElif)
