@@ -1264,7 +1264,6 @@ processDirectives = function(options, macros, lines, ...)
       local min = dirtok=="include_next" and options.includedir or 0
       local fname = evalLuaExpression(string.format("return '%s'", tok:sub(2,-2)))
       local pname, fd, fdi
-print(min)
       for i,v in ipairs(options) do
 	 if v == "-I-" then
 	    sys=false
@@ -1277,7 +1276,6 @@ print(min)
       if fd then
 	 -- include file
 	 if hasOption(options, "-d:include") then xdebug(n, "including %q", pname) end
-	 if sys then pname = "<" .. pname .. ">" end
 	 local savedfdi = options.includedir
 	 options.includedir = fdi -- saved index to implement include_next
 	 processDirectives(options, macros, eliminateComments, joinLines,
@@ -2156,11 +2154,8 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	 end
       end
       -- install dcl in symtable and yield global declarations
-      -- that do not occur in system include files.
       symtable[name] = dcl
-      if context == 'global' and not where:find("^<") then
-	 coroutine.yield(dcl)
-      end
+      if context == 'global' then coroutine.yield(dcl) end
    end
    
    -- forward declations of parsing functions
