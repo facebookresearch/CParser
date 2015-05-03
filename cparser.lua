@@ -1253,7 +1253,6 @@ processDirectives = function(options, macros, lines, ...)
    end
    -- include
    local function doInclude(ti)
-      local incnext = ( dirtok=="include_next" )
       -- get filename
       local pti = wrap(options, expandMacros, macros, yieldFromIterator, ti)
       local tok = pti()
@@ -1265,6 +1264,7 @@ processDirectives = function(options, macros, lines, ...)
       local min = dirtok=="include_next" and options.includedir or 0
       local fname = evalLuaExpression(string.format("return '%s'", tok:sub(2,-2)))
       local pname, fd, fdi
+print(min)
       for i,v in ipairs(options) do
 	 if v == "-I-" then
 	    sys=false
