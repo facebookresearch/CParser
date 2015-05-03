@@ -1262,16 +1262,15 @@ processDirectives = function(options, macros, lines, ...)
       if pti() then xwarning(options, n, "garbage after #include directive") end
       -- interpret filename
       local sys = tok:byte() == 60
+      local min = dirtok=="include_next" and options.includedir or 0
       local fname = evalLuaExpression(string.format("return '%s'", tok:sub(2,-2)))
-      local pname = nil
-      local fd = nil
+      local pname, fd, fdi
       for i,v in ipairs(options) do
 	 if v == "-I-" then
 	    sys=false
-	 elseif v:find("^%-I") and not sys then
+	 elseif i > min and v:find("^%-I") and not sys then
             pname = v:match("^%-I%s*(.*)") .. '/' .. fname
-	    fd = io.open(pname, "r")
-            if fd and incnext then fd:close() fd=nil incnext=false end -- incorrect
+	    fdi, fd = i, io.open(pname, "r")
 	    if fd then break end
 	 end
       end
@@ -1279,8 +1278,11 @@ processDirectives = function(options, macros, lines, ...)
 	 -- include file
 	 if hasOption(options, "-d:include") then xdebug(n, "including %q", pname) end
 	 if sys then pname = "<" .. pname .. ">" end
+	 local savedfdi = options.includedir
+	 options.includedir = fdi -- saved index to implement include_next
 	 processDirectives(options, macros, eliminateComments, joinLines,
 			   yieldLines, fd:lines(), pname)
+	 options.includedir = savedfdi
       elseif hasOption(options, "-Zpass") then
 	 -- include file not found: pass preprocessed directive
 	 coroutine.yield(string.format("#include %s",tok), n)
