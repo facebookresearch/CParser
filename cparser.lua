@@ -354,7 +354,7 @@ end
 local function xmessage(err, options, lineno, message, ...)
    local msg = string.format("cparser: (%s) ",lineno)
    msg = msg .. string.format(message,...)
-   if hasOption(options, "internal") then --- hack
+   if options.silent then
       if err == 'error' then error(message, 0) end
    else
       if err == 'warning' and hasOption(options, "-Werror") then err = 'error' end
@@ -1263,7 +1263,7 @@ processDirectives = function(options, macros, lines, ...)
 	 local i = 0
 	 local v = callAndCollect(options, expandMacros, macros, yieldFromArray, def, n)
 	 local function ti() i=i+1 return v[i] end
-	 local s,r = pcall(evaluateCppExpression,{"internal"}, ti, n, error)
+	 local s,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
 	 if s and type(r)=='number' then captureTable[nam] = {name=nam,intval=r,where=n} end
       end
    end
@@ -1850,24 +1850,14 @@ local function typeToString(ty, nam)
       if ty.const then nam= insertword("const",nam) end
       return nam
    end
-   local function makeinit(v)
-      local s = ''
-      for i=1,#v,2 do
-	 assert(type(v[i])=='string')
-	 if s:find("%w$") and v[i]:find("%w$") then s = s .. ' ' end
-	 s = s .. v[i]
-      end
-      return s
-   end
    local function makelist(ty,sep)
       local s = ''
       for i=1,#ty do
 	 if i>1 then s = s .. sep end
 	 if ty[i].ellipsis then  s = s .. '...'
 	 else s = s .. typeToString(ty[i][1], ty[i][2] or "") end
-	 if ty[i].bfsize then
-	    local sz = ty[i].bfintval or makeinit(ty[i].bfsize)
-	    s = s .. ':' .. sz
+	 if ty[i].bitfield then
+	    s = s .. ':' .. tostring(ty[i].bitfield)
 	 end
       end
       return s
@@ -1882,9 +1872,8 @@ local function typeToString(ty, nam)
 	 nam = star .. insertqual(ty, nam)
 	 ty = ty.t
       elseif ty.tag == 'Array' then
-	 local sz = ""
 	 if nam:find("^[*^]") then nam = parenthesize(nam) end
-	 if ty.size then sz = ty.intval or makeinit(ty.size) end
+	 local sz = ty.size or ''
 	 nam = nam .. '[' .. tostring(sz) .. ']'
 	 ty = ty.t
       elseif ty.tag == 'Function' then
@@ -1896,16 +1885,14 @@ local function typeToString(ty, nam)
 	 ty = ty.t
       elseif ty.tag == 'Enum' then
 	 local s = 'enum'
-	 local v = 1
 	 if ty.n then s = s .. ' ' .. ty.n end
 	 s = s .. '{'
 	 for i=1,#ty do
 	    if i > 1 then s = s .. ',' end
 	    s = s .. ty[i][1]
-            if ty[i][2] and ty[i][2] ~= v then 
-               v = ty[i][2] ; s = s .. '=' .. tostring(v) 
+            if ty[i][2] then 
+               s = s .. '=' .. tostring(ty[i][2]) 
             end
-	    if v then v = v + 1 end
 	 end
 	 return s .. '}' .. nam
       else
@@ -1979,45 +1966,66 @@ local function appendSequences(a1, a2)
    else
       local a = {}
       for i,v in ipairs(a1) do a[1+#a] = v end
-      for i,v in ipairs(a1) do a[1+#a] = v end
+      for i,v in ipairs(a2) do a[1+#a] = v end
       return a
    end
 end
 
 
 -- Evaluation of constant expression.
--- The current token is the first token of the expression.
--- This function returns a value.
+--   We avoid writing a complete expression parser by reusing the cpp
+-- expression parser and either returning an integer (when we can
+-- evaluate) or a string containing the expression (when we can't) or
+-- nil (when we are sure this is not a number).  Array <arr> contains
+-- tokens (odd indices) followed by location (even indices). Argument
+-- <tstable> is the typespecifier table (optional).
+--   The alternative is to write a proper expression parse with
+-- constant folding as well as providing means to evaluate the
+-- value of the sizeof and alignof operators. This is tricky
+-- but might be needed if one wants to compute struct layouts.
 
-
-local function evaluateConstantExpression(options, ti, symtable)
-   --  the following call a big hack
-   --  one should code a proper c expression parser and evaluator
-   local tok,n = ti(-1)
-   local function resolve(tok)
-      local s = symtable[tok]
-      xassert(s and s.intval, options, n,
-	      "symbol '%s' does not reduce to an integer constant", tok)
-      return s.intval
-   end
-   local r = evaluateCppExpression(options, ti, n, resolve)
-   xassert(r, options, n, "unable to evaluate constant expression")
-   xassert(type(r) == 'number', options, n, "expression does not reduce to a constant integer")
-   return r
-end
-
-local function tryToEvaluateConstantExpression(options, init, symtable)
-   local i = 1
+local function tryEvaluateConstantExpression(options, n, arr, symtable)
+   -- array initializers never are constant integers
+   if arr[1] == '{' then return nil,false end
+   -- try direct evaluation
+   local i = -1
    local function ti(arg)
       if not arg then i = i + 2 ; arg = 0 end
       if arg < 0 and i > -1 then i = i - 2 ; arg = 1 end
-      return init[i+2*arg],init[i+2*arg+1]
+      return arr[i+2*arg],arr[i+2*arg+1]
    end
-   local s,r = pcall(evaluateConstantExpression,{"internal"},ti,symtable)
-   if s and type(r) == 'number' and i > #init then return r end
+   local function rsym(tok)
+      local s = symtable and symtable[tok]
+      xassert(s and type(s.intval)=='number', {silent=true}, n,
+	      "symbol '%s' does not resolve to a constant integer")
+      return s.intval
+   end
+   local s,r = pcall(evaluateCppExpression, {silent=true}, ti, n, rsym)
+   if s and type(r)=='number' and not ti() then return r,true end
+   if s and r and type(r)~='number' then return nil,false end
+   -- just return an expression string
+   local function spacebetween(t1,t2)
+      if not t1 or not t2 then return false end
+      local it1 = isIdentifier(t1) or isNumber(t1)
+      local it2 = isIdentifier(t2) or isNumber(t2)
+      if it1 and it2 then return true end
+      if it1 and not it2 or not it1 and it2 then return false end
+      local z = callAndCollect(options,tokenizeLine,t1..t2,n,true)
+      return z[1]~=t1 or z[2]~=t2
+   end
+   local s = {}
+   for i=1,#arr,2 do
+      if spacebetween(arr[i-2],arr[i]) then
+	 s[1+#s] = ' '
+      end
+      if isName(arr[i]) and symtable[arr[i]] and symtable[arr[i]].eval then
+	 s[1+#s] = string.format("(%s)", symtable[arr[i]].eval)
+      else
+	 s[1+#s] = arr[i]
+      end
+   end
+   return table.concat(s), false
 end
-
-
 
 
 -- This coroutine parses declarations
@@ -2112,9 +2120,9 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	    xassert(not init,options,n,"extern declaration cannot have initializers")
 	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
 	 else
-	    local v
-	    if ty.const and init and init[1] and init[1] ~= '{' then
-	       v = tryToEvaluateConstantExpression(options,init,symtable)
+	    local v = ty.const and init
+	    if type(v) == 'table' then
+	       v = tryEvaluateConstantExpression(options,where,init,symtable)
 	    end
 	    dcl = VarDef{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
 	 end
@@ -2261,12 +2269,15 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	 end
 	 if p == 'size' and ltok == 'long' and nn[p] == 'long' then
 	    nn[p] = 'long long'
+	 elseif p=='attr' then
+	    -- already done
          elseif p=='type' and nn[p] then
 	    xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
-	 elseif nn[p] and p~='attr' then
+	 elseif nn[p] then
 	    xerror(options,n,"conflicting type specifiers '%s' and '%s'", nn[p], ltok)
+	 else
+	    nn[p] = ltok
 	 end
-	 nn[p] = ltok
       end
       -- resolve multi-keyword type names
       if not nn.type then
@@ -2389,13 +2400,13 @@ local function parseDeclarations(options, symbols, tokens, ...)
 		  ti()
 	       else
 		  local size = skipTo({},']',',',';')
-		  local intval = tryToEvaluateConstantExpression(options, size, symtable)
-                  if size and not intval then -- FIXME
-                     xwarning(options,n,"(cparser limitation) cannot evaluate array size")
-                  end
-		  xassert(intval==nil or intval>=0, options,n, "array cannot have negative size")
+		  local v = tryEvaluateConstantExpression(options, n, size, symtable)
+		  xassert(v, options, n,
+			  "syntax error in array size specification")
+		  xassert(type(v)~='number' or v>=0, options, n,
+			  "invalid array size '%s'", v)
 		  check(']') ti()
-		  ty = Array{t=ty, size=size, intval=intval}
+		  ty = Array{t=ty, size=v}
 	       end
 	    end
 	 end
@@ -2521,13 +2532,12 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	       if tok == ':' then ti() -- unnamed bitfield
 		  xassert(lextra.integral, options, where, "bitfields must be of integral types")
 		  local size = skipTo({},',',';')
-		  local intval = tryToEvaluateConstantExpression(options, size, symtable)
-                  if size and not intval then -- FIXME
-                     xwarning(options,where,"(cparser limitation) cannot evaluate bitfield size")
-                  end
-		  xassert(intval==nil or intval>=0, options, where, 
-                          "invalid anonymous bitfield size (%s)", intval)
-		  ty[1+#ty] = Pair{lty,bfsize=size,bfintval=intval}
+		  local v = tryEvaluateConstantExpression(options, where, size, symtable)
+		  xassert(v, options, where,
+			  "syntax error in bitfield specification")
+		  xassert(type(v)~='number' or v>=0, options, where,
+			  "invalid anonymous bitfield size (%s)", v)
+		  ty[1+#ty] = Pair{lty,bitfield=v}
 	       else
 		  local pname, pty, psclass = parseDeclarator(lty, lextra, symtable, context)
 		  if pty.tag == 'Array' and not pty.size then
@@ -2539,13 +2549,12 @@ local function parseDeclarations(options, symbols, tokens, ...)
 		     xassert(lty == pty and lextra.integral, options, where, 
                              "bitfields must be of integral types")
 		     local size = skipTo({},',',';')
-		     local intval = tryToEvaluateConstantExpression(options, size, symtable)
-                     if size and not intval then -- FIXME
-                        xwarning(options,where,"(cparser limitation) cannot evaluate bitfield size")
-                     end
-		     xassert(intval==nil or intval>0, options, where, 
-                             "invalid bitfield size (%s)", intval)
-		     ty[1+#ty] = Pair{pty,pname,bfsize=size,bfintval=intval}
+		     local v = tryEvaluateConstantExpression(options,where,size,symtable)
+		     xassert(v, options, where,
+			     "syntax error in bitfield specification")
+		     xassert(type(v)~='number' or v>0, options, where,
+			     "invalid bitfield size (%s)", v)
+		     ty[1+#ty] = Pair{pty,pname,bitfield=v}
 		  else
 		     ty[1+#ty] = Pair{pty,pname}
 		  end
@@ -2574,25 +2583,32 @@ local function parseDeclarations(options, symbols, tokens, ...)
       if isName(tok) then ttag = tok ; tnam = kind .. ' ' .. ttag ; ti() end
       if ttag and tok ~= '{' then return Type{ t = tnam } end
       local i = 1
-      local v = 1
+      local v,a = 1,0
       local ty = Enum{n=ttag}
       local ity = Type{n="int",const=true,enum={{ty}}}
       local where = n
       check('{') ti()
       repeat
 	 local nam = tok
+	 local init
 	 xassert(isName(nam),options,n,"identifier expected, got '%s'", tok)
          collectAttributes(nil) -- parsed but lost for now
 	 if ti() == '=' then ti()
-            local init = skipTo({},',','}')
-	    v = tryToEvaluateConstantExpression(options, init, symtable)
+            init = skipTo({},',','}')
+	    v = tryEvaluateConstantExpression(options, n, init, symtable)
+	    xassert(v,options,n,"invalid value for enum constant")
+	    a = 0
 	 end
-         local x = v and {tostring(v), n} 
-         if not v then --- FIXME
-            xwarning(options,n,"cparser limitation: cannot compute value of enum symbol '%s'",nam)
-         end
-	 ty[i] = Pair{nam,v}
-	 if v then v = v + 1 end
+	 local x
+	 if type(v) == 'number' then
+	    x = v + a
+	 elseif a > 0 then
+	    x = string.format("%d+(%s)",a,v)
+	 else
+	    x = v
+	 end
+	 ty[i] = Pair{nam, init and v}
+	 a = a + 1
 	 i = i + 1
 	 processDeclaration(n, symtable, context, nam, ity, '[enum]', x)
 	 if tok == ',' then ti() else check(',','}') end
@@ -2729,9 +2745,9 @@ if DEBUG then
 	    local s = typeToString(action.type, n)
 	    if action.type.inline then s = 'inline' .. ' ' .. s end
 	    if action.sclass then s = action.sclass .. ' ' .. s end
-	    if action.intval then s = s .. '=' .. tonumber(action.intval) 
-	    elseif action.init then s = s .. '=' .. '(..)'
-	    elseif action.body then s = s .. '{..}' end
+	    if action.intval then s = s .. ' = ' .. action.intval
+	    elseif action.init then s = s .. ' = ' .. '(..)'
+	    elseif action.body then s = s .. ' {..}' end
 	    print("|\t", s)
 	 end
       end
