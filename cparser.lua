@@ -242,6 +242,74 @@ knownIncludeQuirks["<stdbool.h>"] = {
    "#endif"
 }
 
+
+
+
+---------------------------------------------------
+---------------------------------------------------
+---------------------------------------------------
+-- TAGGED TABLES
+
+
+-- Utilities to produce and print tagged tables.
+-- The tag name is simply the contents of table key <tag>.
+-- Function <newTag> returns a node constructor
+--
+-- Example:
+--
+-- > Foo = newTag('Foo')
+-- > Bar = newTag('Bar')
+--
+-- > print( Foo{const=true,next=Bar{name="Hello"}} )
+-- Foo{next=Bar{name="Hello"},const=true}
+--
+-- > print( Bar{name="hi!", Foo{1}, Foo{2}, Foo{3}} )
+-- Bar{Foo{1},Foo{2},Foo{3},name="hi!"}
+
+local function newTag(tag)
+   -- the printing function
+   local function tostr(self)
+      local function str(x)
+	 if type(x)=='string' then
+	    return string.format("%q",x):gsub("\\\n","\\n")
+	 elseif type(x)=='table' and not getmetatable(x) then
+	    return "{..}"
+	 else
+	    return tostring(x)
+	 end
+      end
+      local p = string.format("%s{", self.tag or "Node")
+      local s = {}
+      local seqlen = 0
+      for i=1,#self do
+	 if self[i] then seqlen=i else break end end
+      for i=1,seqlen do
+	 s[1+#s] = str(self[i]) end
+      for k,v in pairs(self) do
+	 if type(k) == 'number' then
+	    if k<1 or k>seqlen then
+	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
+	 elseif type(k) ~= 'string' then
+	    s.extra = true
+	 elseif k ~= 'tag' and not k:find("^_") then
+	    s[1+#s] = string.format("%s=%s",k,str(v)) end
+      end
+      if s.extra then s[1+#s] = "..." end
+      return p .. table.concat(s,',') .. '}'
+   end
+   -- the constructor
+   return function(t) -- must be followed by a table constructor
+      t = t or {}
+      assert(type(t)=='table')
+      setmetatable(t, { __tostring=tostr } )
+      t.tag = tag
+      return t
+   end
+end
+
+Node = newTag(nil) -- hack to print any table: print(Node(nn))
+
+
 ---------------------------------------------------
 ---------------------------------------------------
 ---------------------------------------------------
@@ -1640,73 +1708,6 @@ local function cpp(filename, outputfile, options)
    end
 end
 
-
-
----------------------------------------------------
----------------------------------------------------
----------------------------------------------------
--- TAGGED TABLES
-
-
--- Utilities to produce and print tagged tables.
--- The tag name is simply the contents of table key <tag>.
--- Function <newTag> returns a node constructor
---
--- Example:
---
--- > Foo = newTag('Foo')
--- > Bar = newTag('Bar')
---
--- > print( Foo{const=true,next=Bar{name="Hello"}} )
--- Foo{next=Bar{name="Hello"},const=true}
---
--- > print( Bar{name="hi!", Foo{1}, Foo{2}, Foo{3}} )
--- Bar{Foo{1},Foo{2},Foo{3},name="hi!"}
-
-
-local metaTag = {
-   __tostring = function(self)
-      local function str(x)
-	 if type(x)=='string' then
-	    return string.format("%q",x):gsub("\\\n","\\n")
-	 elseif type(x)=='table' and not getmetatable(x) then
-	    return "{..}"
-	 else
-	    return tostring(x)
-	 end
-      end
-      local p = string.format("%s{", self.tag or "Node")
-      local s = {}
-      local seqlen = 0
-      for i=1,#self do
-	 if self[i] then seqlen=i else break end end
-      for i=1,seqlen do
-	 s[1+#s] = str(self[i]) end
-      for k,v in pairs(self) do
-	 if type(k) == 'number' then
-	    if k<1 or k>seqlen then
-	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
-	 elseif type(k) ~= 'string' then
-	    s.extra = true
-	 elseif k ~= 'tag' then
-	    s[1+#s] = string.format("%s=%s",k,str(v)) end
-      end
-      if s.extra then s[1+#s] = "..." end
-      return p .. table.concat(s,',') .. '}'
-   end
-}    
-
-local function newTag(tag)
-   return function(t) -- must be followed by a table constructor
-      t = t or {}
-      assert(type(t)=='table')
-      setmetatable(t, metaTag)
-      t.tag = tag
-      return t
-   end
-end
-
-Node = newTag(nil) -- hack to print any table: print(Node(nn))
 
 
 ---------------------------------------------------
