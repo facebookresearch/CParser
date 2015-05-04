@@ -34,44 +34,44 @@ file `outputfile.c` or to the standard output.
 
 The following options are recognized:
 
-- `-Werror` \
+- `-Werror`  
   Cause all warning to be treated as errors.
   Note that parsing cannot resume after an error.
   The parser simply throws a Lua error.
 
-- `-w` \
+- `-w`   
   Do not print warning messages.
 
-- `-D`*sym*`[=`*val*`]` \
+- `-D`*sym*`[=`*val*`]`  
    Define preprocessor symbol `sym` to value `val`.
    The default value of `val` is `1`
 
-- `-U`*sym* \
+- `-U`*sym*   
   Undefine preprocessor symbol `sym`.
 
-- `-I`*dir*\
+- `-I`*dir*   
   Add directory `dir` to the search path for included files. Note
   that there is no default search path. When an include file is not
   found the include directive is simply ignored with a warning (but
   see also option `-Zpass`).  Therefore all include directives are
   ignored unless one uses option `-I` to specify the search path.
 
-- `-I-`\
+- `-I-`   
   Marks the beginning of the system include path. When an included
   file is given with angle brackets, (as in `#include <stdio.h>`),
   one only searches directories specified by the `-I` options that
   follow `-I-`. Therefore all these include directives are ignored
   unless one uses option `-I-` followed by one or more option `-I`.
 
-- `-dM`\
+- `-dM`   
   Instead of producing the preprocessed file,
   dumps all macros defined at the end of the parse.
 
-- `-Zcppdef`\
+- `-Zcppdef`   
   Run the native preprocessor to initialize
   the predefined macros (cpp -dM < dev/null).
 
-- `-Zpass`\
+- `-Zpass`   
   This option should be enabled when the output
   of `lcpp` is passed to another preprocessor.
   When this option is provided,
