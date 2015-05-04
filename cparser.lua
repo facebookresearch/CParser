@@ -291,7 +291,9 @@ local function newTag(tag)
 	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
 	 elseif type(k) ~= 'string' then
 	    s.extra = true
-	 elseif k ~= 'tag' and not k:find("^_") then
+	 elseif k:find("^_") then
+	    -- hidden field
+	 elseif k ~= 'tag' then
 	    s[1+#s] = string.format("%s=%s",k,str(v)) end
       end
       if s.extra then s[1+#s] = "..." end
@@ -1723,21 +1725,27 @@ Pair = newTag('Pair')
 
 -- Types are represented by a series of tagged data structures.
 -- Subfield <t> usually contains the base type or the function return
--- type.  Subfield <n> contains the name of the structure, union,
--- or enum.  Subfields <const>, <volatile>, <restrict> can be set to
--- true to qualify the type. Numerical indices are used for struct
--- components and function arguments.
+-- type.  Subfield <n> contains the name of the structure, union, or
+-- enum.  Numerical indices are used for struct components and
+-- function arguments. The construct Type{n=...} is used for named
+-- types, including basic types, typedefs, and tagged struct, unions
+-- or enums. When the named type has a better definition the hidden
+-- field <_def> contains it. They should be constructed with function
+-- namedType() because it is expected that there is only one copy of
+-- each named type. The construct Qualified{t=...} is used to
+-- represent const/volatile/restrict variants of the base type.
 --
 -- Examples
 --   long int a                  Type{n="long int"}
 --   int *a                      Pointer{t=Type{n="int"}}
---   const int *a                Pointer{t=Type{n="int",const=true}}
---   int* const a                Pointer{t=Type{n="int"},const=true}
+--   const int *a                Pointer{t=Qualified{const=true,t=Type{n="int"}}}
+--   int* const a                Qualified{const=true,t=Pointer{t=Type{n="int"}}}
 --   void foo(int bar)           Function{Pair{Type{n="int"},"bar"},t=Type{n="void"}}}
 --   int foo(void)               Function{t=Type{n="int"}}
 --   int foo()                   Function{t=Type{n="int"},withoutProto=true}
 
 Type = newTag('Type')
+Qualified = newTag('Qualified')
 Pointer = newTag('Pointer')
 Array = newTag('Array')
 Enum = newTag('Enum')
@@ -1745,98 +1753,87 @@ Struct = newTag('Struct')
 Union = newTag('Union')
 Function = newTag('Function')
 
+-- This function creates a qualified variant of a type.
 
--- Definitions and declarations are represented by more tagged tables.
--- They all contain a field <where> containing a string describing
--- the file name and line number. Field <name> is usually the name
--- being defined, field <type> contains the type, field <init>
--- optionally contain the initialization and field <body> the function body,
--- field <sclass> contains the storage class (static, extern).
-
-TypeDef = newTag('TypeDef')         --- type definition
-FuncDef = newTag('FuncDef')         --- function definition (with a body)
-VarDef = newTag('VarDef')           --- variable definition (not extern)
-Declaration = newTag('Declaration') --- a declaration (e.g extern)
-
-
--- Resolve named types to their definition
-
-local function resolveType(symtable, oty)
-   local ty = oty
-   while ty.tag == 'Type' and symtable[ty.n] and symtable[ty.n].tag == 'TypeDef' do
-      local nty = symtable[ty.n].type
-      if not nty or nty.tag == 'Type' and nty.n == ty.n then break end
-      ty = nty
-   end
-   if ty ~= oty then
-      if ty.const ~= oty.const or ty.volatile ~= oty.volatile
-      or ty.restrict == oty.restrict then -- copy and plug qualifiers
-	 local nty = Node{}
-	 for k,v in pairs(ty) do nty[k] = v end
-	 nty.const = oty.const
-	 nty.volatile = oty.volatile
-	 nty.restrict = oty.restrict
-	 ty = nty
-      end
-   end
+local function addQualifier(ty, q)
+   assert(q=='const' or q=='volatile' or q=='restrict')
+   if ty.Tag ~= 'Qualified' then ty = Qualified{t=ty} end
+   ty[q] = true
    return ty
 end
 
+-- This function compares two types. When optional argument <oki> is
+-- not false and types t1 or t2 are incomplete, the function returns
+-- true if the types are compatible: an unsized array matches a sized
+-- array, a function type without prototype matches one with a
+-- prototype. Furthermore, if oki is <1>, the function will patch type
+-- <t1> to contain the complete information.
 
--- Compare two types.
--- flag <oki> indicates that comparison succeeds when one type is incomplete.
----flag <uni> indicates that incomplete types should be unified
-
-local function typeCompare(symtable,ty1,ty2,oki,uni)
-   if ty1 == ty2 then return true end
-   if not ty1 or not ty2 then return false end
-   if ty1.const ~= ty2.const then return false end
-   if ty1.volatile ~= ty2.volatile then return false end
-   if ty1.restrict ~= ty2.restrict then return false end
-   if ty1 and ty1.tag == 'Type' then ty1 = resolveType(symtable,ty1) end
-   if ty2 and ty2.tag == 'Type' then ty2 = resolveType(symtable,ty2) end
-   if ty1 == ty2 then return true end
-   if not ty1 or not ty2 then return false end
-   if ty1.tag ~= ty2.tag then return false end
-   if ty1.n ~= ty2.n then return false end
-   if ty1.n or ty2.n then return true end 
-   if ty1.t and ty2.t and not typeCompare(symtable,ty1.t,ty2.t,oki,uni) then return false end
-   if ty1.tag == 'Array' then
-      if uni and ty1.size == nil then ty1.size=ty2.size ty1.intval=ty2.intval end
-      if uni and ty2.size == nil then ty2.size=ty1.size ty2.intval=ty1.intval end
-      if oki and (ty1.size == nil or ty2.size == nil) then return true end
-      if ty1.intval ~= ty2.intval then return false end
-      if tableCompare(ty1.size,ty2.size) then return true end
-      -- we don't know
-   elseif ty1.tag == 'Function' then
-      if uni then 
-	 local function copyproto(ty1,ty2)
-	    if ty1.withoutProto and not ty2.withoutProto then
-	       ty1.withoutProto = true
-	       for i=1,#ty2 do ty1[i]=ty2[i] end
-	    end
+local function compareTypes(t1, t2, oki)
+   if t1 == t2 then
+      return t1
+   elseif t1.tag == 'Type' and t1._def then
+      return compareTypes(t1._def, t2, oki)
+   elseif t2.tag == 'Type' and t2._def then
+      return compareTypes(t1, t2._def, oki)
+   elseif t1.tag ~= t2.tag then
+      return false
+   elseif t1.tag == 'Qualified' then
+      if t1.const ~= t2.const then return false end
+      if t1.volatile ~= t2.volatile then return false end
+      if t1.restrict ~= t2.restrict then return false end
+      return compareTypes(t1.t, t2.t, oki)
+   elseif t1.tag == 'Array' then
+      if compareTypes(t1.t, t2.t, oki) then
+	 if t1.size == t2.size then return true end
+	 if t1.size == nil or t2.size == nil then
+	    if oki == 1 and t1.size == nil then t1.size = t2.size end
+	    return oki
 	 end
-	 copyproto(ty1,ty2)
-	 copyproto(ty2,ty1)
       end
-      if oki and (ty1.withoutProto or ty2.withoutProto) then return true end
-      if #ty1 ~= #ty2 then return false end
-      for i=1,#ty1 do
-	 if not typeCompare(symtable,ty1[i][1],ty2[i][1],oki,uni) then return false end
+   elseif t1.tag == 'Function' then
+      if compareTypes(t1.t, t2.t, oki) then
+	 if t1.withoutProto or t2.withoutProto then
+	    if t1.withoutProto and t2.withoutProto then return true end
+	    if oki == 1 and t1.withoutProto then
+	       for i=1,#t2 do t1[i] = t2[i] end
+	       t1.withoutProto = nil
+	    end
+	    return oki
+	 elseif #t1 == #t2 then
+	    for i=1,#t1 do
+	       if t1[i] == nil or t2[i] == nil then
+		  return t1[i].ellipsis and t2[i].ellipsis
+	       elseif not compareTypes(t1[i][1],t2[i][1],oki) then
+		  return false
+	       end
+	    end
+	    return true
+	 end
+      end
+   elseif t1.tag == 'Enum' then
+      return false
+   elseif #t1 == #t2 then -- struct or union
+      for i=1,#t1 do
+	 if t1[i][2] ~= t2[i][2] then return false end
+	 if t1[i].bitfield ~= t2[i].bitfield then return false end
+	 if not compareTypes(t1[i][1],t2[i][1],oki) then return false end
+      end
+      if t1.n == t2.n then return true end
+      if t1.n == nil or t2.n == nil then
+	 if oki == 1 and t1.n == nil then t1.n = t2.n end
+	 return oki
       end
    end
-   return true
+   return false
 end
 
-
-
--- The following function construct a C string suitable
--- for declaring a variable of the type <ty>.
--- Argument <nam> contains the name of the variable.
--- It defaults to "%s".
+-- Constructs a string suitable for declaring a variable <nam> of type
+-- <ty> in a C program. Argument <nam> defaults to "%s".
 
 local function typeToString(ty, nam)
    nam = nam or "%s"
+   assert(type(nam) == 'string')
    local function parenthesize(nam)
       return '(' .. nam .. ')'
    end
@@ -1865,8 +1862,14 @@ local function typeToString(ty, nam)
    -- main loop
    while true do
       if ty.tag == 'Type' then
-	 if ty.n then nam = insertword(ty.n, nam) end
-	 return insertqual(ty, nam)
+	 return insertword(ty.n, nam)
+      elseif ty.tag == 'Qualified' then
+ 	 if ty.t and ty.t.tag == 'Type' then nam = insertword(ty.t.n, nam) end
+	 if ty.restrict then nam = insertword("restrict",nam) end
+	 if ty.volatile then nam = insertword("volatile",nam) end      
+	 if ty.const then nam= insertword("const",nam) end
+	 if ty.t and ty.t.tag == 'Type' then ty = nil else ty = ty.t end
+	 if not ty then return nam end
       elseif ty.tag == 'Pointer' then
 	 local star = ty.block and '^' or '*'
 	 nam = star .. insertqual(ty, nam)
@@ -1904,16 +1907,55 @@ local function typeToString(ty, nam)
 end
 
 
--- The symbol table is implemented by a table that contains TypeDef,
--- FuncDef, VarDef, and Declarations. Some Typedefs in the symbol
--- table have no type but are used to mark identifiers that we have
--- inferred to be types even though we haven't seen their definition
--- (unresolved include file, etc.)  Scoping is implemented by
--- inheritance through metatables.
+-- Tables Definition{} and Declaration{} represent variable and
+-- constant definitions and declarations found in the code. Field
+-- <where> is the location of the definition or declaration, field
+-- <name> is the name of the variable or constant being defined, field
+-- <type> contains the type, field <init> optionally contain the
+-- initialization or the function body. Field <sclass> contains the
+-- storage class such as <extern>, <static>, <auto>. Special storage
+-- class '[enum]' is used to define enumeration constants. Special
+-- storage class '[cpp]' is used to communicate certain preprocessor
+-- constants. Table TypeDef{} represents type definitions and contains
+-- pretty much the same fields. Note that storage class <typedef> is
+-- used for an actual <typedef> and storage class <[typetag]> is used
+-- when the type definition results from a tagged structure union or
+-- enum.
+
+TypeDef = newTag('TypeDef')
+Definition = newTag('Definition')
+Declaration = newTag('Declaration')
+
+local function declToString(action)
+   local n = (action.sclass == '[typetag]') and "" or action.name
+   local s = typeToString(action.type, n)
+   if action.type.inline then
+      s = 'inline' .. ' ' .. s
+   end
+   if action.sclass then
+      s = action.sclass .. ' ' .. s
+   end
+   if action.intval then
+      s = s .. ' = ' .. action.intval
+   elseif action.init then
+      local r = (action.type.tag == 'Function') and ' {..}' or '= (...)'
+      s = s .. r
+   end
+   return s
+end
+
+
+-- The symbol table is implemented by a table that contains Type{}
+-- nodes for type definitions (possibly with a hidden <_def> field
+-- pointing to the full definition), Definition{} or Declaration{]
+-- nodes for all other names.
 
 local function isTypeName(symtable, name)
-   return symtable[name] and symtable[name].tag == 'TypeDef'
+   local ty = symtable[name]
+   if ty and ty.tag == 'Type' then return ty end
+   return false
 end
+
 local function isDefined(symtable, name)
    return symtable[name] and symtable[name].tag ~= 'Declaration'
 end
@@ -1923,6 +1965,7 @@ local function newScope(symtable)
    setmetatable(newSymtable, {__index=symtable})
    return newSymtable
 end
+
 
 -- Returns an iterator that can look tokens ahead.
 -- Calling it without arguments works like an ordinary iterator.
@@ -2024,13 +2067,18 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
 	 s[1+#s] = arr[i]
       end
    end
-   return table.concat(s), false
+   s = table.concat(s)
+   xwarning(options, n, "cparser cannot evaluate '%s' as an integer constant"
+	       .. " and is using the literal expression instead", s)
+   return s, false
 end
 
 
--- This coroutine parses declarations
+-- This coroutine is the declaration parser
+-- Argument <globals> is the global symbol table.
+-- Argument <tokens> is a coroutine that yields program tokens.
 
-local function parseDeclarations(options, symbols, tokens, ...)
+local function parseDeclarations(options, globals, tokens, ...)
    -- see processMacroCaptures around the end of this function
    if type(options.macros) == 'table' then options.macros[1] = {} end
    
@@ -2044,6 +2092,27 @@ local function parseDeclarations(options, symbols, tokens, ...)
       -- print(string.format("*** [%s] (%s)",tok,n))
       return tok,n
    end
+
+   -- this function is used to retrieve or construct Type{} nodes for
+   -- named types. Since the Type constructor should not be used we
+   -- override it with a function that calls assert(false)
+   local function namedType(symtable, nam)
+      local ty = symtable[nam]
+      if ty and ty.tag == 'Type' then
+	 return ty
+      elseif ty and ty.tag ~= 'Type' then
+	 local msg = " previous declaration at %s"
+	 if rawget(symtable,nam) then
+	    xerror(options, n, "type name '%s' conflicts with" .. msg, nam, ty.where)
+	 else
+	    xwarning(options, n, "type name '%s' shadows" .. msg, nam, ty.where)
+	 end
+      end
+      ty = Type{n=nam}
+      symtable[nam] = ty
+      return ty
+   end
+   local function Type() assert(false) end
    
    -- check that current token is one of the provided token strings
    local function check(s1,s2)
@@ -2102,13 +2171,20 @@ local function parseDeclarations(options, symbols, tokens, ...)
    -- Argument <symtable> is the current symbol table.
    -- Argument <context> is 'global', 'param', 'local'
    local function processDeclaration(where, symtable, context, name, ty, sclass, init)
-      -- create dcl
       local dcl
+      -- handle type definitions
       if sclass == 'typedef' or sclass == '[typetag]' then
+	 local nty = namedType(symtable, name)
+	 nty._def = ty
 	 dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
-      elseif ty.tag == 'Function' then
+	 symtable[name] = nty
+	 if context == 'global' then coroutine.yield(dcl) end
+	 return
+      end
+      -- handle variable and constants
+      if ty.tag == 'Function' then
 	 if init then
-	    dcl = FuncDef{name=name,type=ty,sclass=sclass,where=where,body=init}
+	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init}
 	 else
 	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
 	 end
@@ -2124,47 +2200,43 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	    if type(v) == 'table' then
 	       v = tryEvaluateConstantExpression(options,where,init,symtable)
 	    end
-	    dcl = VarDef{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
+	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
 	 end
       end
       -- check for duplicate declaration
-      local odcl = symtable[name]
-      local samescope = rawget(symtable, name)
-      if odcl then
+      local ddcl = dcl
+      if dcl.tag ~= 'TypeDef' then
+	 local odcl = symtable[name]
+	 local samescope = rawget(symtable, name)
 	 -- compare types
-	 if samescope then
-	    if dcl.tag ~= 'Declaration' and odcl.tag ~= 'Declaration' then
-	       xerror(options,where,"duplicate definition of symbol '%s' (see %s)",
-		      name, odcl.where) 
-	    end
-	    if not typeCompare(symtable,dcl.type,odcl.type,true) then
+	 if odcl and samescope then
+	    if dcl.tag == 'Definition' and odcl.tag == 'Definition'
+	    or not compareTypes(dcl.type,odcl.type,true) then
+	       print("***0",dcl)
+	       print("***1",odcl)
 	       xerror(options,where,
-		      "incompatible declarations of symbol '%s' (see %s)",
-		      name, odcl.where)
+		      "%s of symbol '%s' conflicts with earlier %s at %s",
+		      string.lower(dcl.tag), name,
+		      string.lower(odcl.tag), odcl.where)
 	    end
-	    typeCompare(symtable,dcl.type,odcl.type,true,true)
-	 else
-	    if dcl.tag ~= odcl.tag and dcl.tag == 'TypeDef' then
-	       xwarning(options, n,
-			"type definition %s shadows a variable previously declared at %s",
-			name, odcl.where)
-	    elseif dcl.tag ~= odcl.tag and odcl.tag == 'TypeDef' then
-	       xwarning(options, n,
-			"symbol %s shadows a type definition (in %s)",
-			name, odcl.where)
+	    if odcl.tag == 'Definition' then
+	       ddcl = odcl
+	       compareTypes(ddcl.type, dcl.type, 1)
+	    else
+	       compareTypes(ddcl.type, odcl.type, 1)
 	    end
 	 end
 	 -- compare storage class
-	 if dcl.sclass ~= odcl.sclass then
+	 if odcl and dcl.sclass ~= odcl.sclass then
 	    if dcl.sclass == 'static' or samescope and odcl.sclass == 'static' then
-	       xerror(options, n, "inconsistent linkage for symbol '%s' (see %s)",
+	       xerror(options, n, "inconsistent linkage for '%s' (previous at %s)",
 		      name, odcl.where)
 	    end
 	 end
+	 -- install dcl in symtable and yield global declarations
+	 symtable[name] = ddcl
+	 if context == 'global' then coroutine.yield(dcl) end
       end
-      -- install dcl in symtable and yield global declarations
-      symtable[name] = dcl
-      if context == 'global' then coroutine.yield(dcl) end
    end
    
    -- forward declations of parsing functions
@@ -2252,15 +2324,15 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	 elseif tok == 'struct' or tok == 'union' then
 	    p = 'type'; ty = parseStruct(symtable, context, abstract, nn)
          elseif isName(tok) then
-            if isTypeName(symtable, tok) then
-               p = 'type'; ty=Type{n=tok}; ti()
+	    local tt = isTypeName(symtable, tok)
+            if tt then
+               p = 'type'; ty = tt; ti()
             else
                local tok1 = ti(1)
                local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
                local no = not abstract and tok1:find("^[;,[]")
                if yes and not no then -- assuming this is a type name
-                  symtable[tok]=TypeDef{n=tok}
-                  p = 'type'; ty=Type{n=tok}; ti()
+		  p = 'type'; ty = namedType(globals, tok); ti()
                end
             end
 	 end
@@ -2331,9 +2403,11 @@ local function parseDeclarations(options, symbols, tokens, ...)
                  options, n, msg, sclass)
       end
       -- return
-      if not ty then ty = Type{n=nn.type} end
-      if nn.const then ty.const = true end
-      if nn.volatile then ty.volatile = true end
+      if not ty then ty = namedType(globals, nn.type) end
+      if nn.const then ty = addQualifier(ty, 'const') end
+      if nn.volatile then ty = addQualifier(ty, 'volatile') end
+      xassert(not nn.restrict, options, n,
+	      "qualifier '%s' is not adequate here", nn.restrict)
       return ty, nn
    end
 
@@ -2358,15 +2432,16 @@ local function parseDeclarations(options, symbols, tokens, ...)
                block = true -- code blocks (apple)
 	    end
 	    ti()
-	    local nt = {}
-	    while tok=='const' or tok=='volatile' or specifierTable[tok]=='restrict' do
+	    local nt, pt
+	    while tok=='const' or tok=='volatile'
+	    or specifierTable[tok]=='restrict' do
+	       nt = nt or Qualified{}
 	       nt[specifierTable[tok]] = true
 	       ti()
 	    end
-	    ty = Pointer{t=parseRev(),block=block}
-	    ty.const = nt.const
-	    ty.volatile = nt.volatile
-	    ty.restrict = nt.restrict
+	    pt = parseRev()
+	    if nt then nt.t = pt; pt = nt; end
+	    ty = Pointer{t=pt, block=block}
 	 elseif tok == '(' then
 	    ti()
 	    local p = specifierTable[tok] or isTypeName(tok) or tok == ')'
@@ -2384,8 +2459,8 @@ local function parseDeclarations(options, symbols, tokens, ...)
 	       ty = parsePrototype(ty,symtable,context,abstract)
 	       check(")") ti()
                while isAttribute() or tok == 'const' do
-                  if tok == 'const' then 
-                     ty.const = true; ti() 
+                  if tok == 'const' or tok == 'volatile' then 
+                     ty[tok] = true; ti() 
                   else 
                      ty.attr = collectAttributes(ty.attr) 
                   end
@@ -2508,16 +2583,18 @@ local function parseDeclarations(options, symbols, tokens, ...)
       if i == 0 then ty.withoutProto = true end
       return ty
    end
-
+   
    parseStruct = function(symtable, context, abstract, nn)
       check('struct', 'union')
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
-      if isName(tok) then ttag = tok; nn.newtype = true; tnam = kind..' '..ttag; ti() end
-      if ttag and tok ~= '{' then return Type{n=tnam} end
+      if isName(tok) then ttag=tok; tnam=kind..' '..ttag; nn.newtype=true; ti() end
+      if ttag and tok ~= '{' then return namedType(symtable, tnam) end
+      -- parse real struct definition
+      local ty
+      if kind == 'struct' then ty = Struct{n=ttag} else ty = Union{n=ttag} end
       local where = n
-      local ty = kind == 'struct' and Struct{n=ttag} or Union{n=ttag}
       check('{') ti()
       while tok and tok ~= '}' do
 	 local where = n
@@ -2571,21 +2648,23 @@ local function parseDeclarations(options, symbols, tokens, ...)
       if ttag then
 	 nn.newtype = true
 	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
-	 ty = Type{n=tnam}
-      end 
-      return ty
+	 return namedType(symtable, tnam)
+      else 
+	 return ty
+      end
    end
-
+   
    parseEnum = function(symtable, context, abstract, nn)
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
-      if isName(tok) then ttag = tok ; tnam = kind .. ' ' .. ttag ; ti() end
-      if ttag and tok ~= '{' then return Type{ t = tnam } end
+      if isName(tok) then ttag=tok; tnam=kind..' '..ttag; nn.newtype=true; ti() end
+      if ttag and tok ~= '{' then return namedType(symtable, tnam) end
+      -- parse real struct definition
       local i = 1
       local v,a = 1,0
       local ty = Enum{n=ttag}
-      local ity = Type{n="int",const=true,enum={{ty}}}
+      local ity = namedType(globals, "int")
       local where = n
       check('{') ti()
       repeat
@@ -2618,9 +2697,10 @@ local function parseDeclarations(options, symbols, tokens, ...)
       nn.newtype = true
       if ttag then
 	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
-	 ty = Type{n=tnam}
+	 return namedType(symtable, tnam)
+      else 
+	 return ty
       end
-      return ty
    end
 
    -- When macros[1] is a table, the preprocessor attempts to
@@ -2628,10 +2708,11 @@ local function parseDeclarations(options, symbols, tokens, ...)
    -- the evaluation is successful, it adds it to the table.
    local function processMacroCaptures()
       local macros = options.macros
-      local ity = Type{const=true}
+      local ity = Qualified{const=true}
       if type(macros) == 'table' and type(macros[1]) == 'table' then
 	 for k,v in pairs(macros[1]) do
-	    local a = VarDef{where=v.where,name=k,type=ity,intval=v.intval,sclass='[cpp]'}
+	    local a = Definition{where=v.where, name=k, type=ity,
+				 intval=v.intval, sclass='[cpp]'}
 	    coroutine.yield(a)
 	 end
 	 macros[1] = {}
@@ -2639,14 +2720,14 @@ local function parseDeclarations(options, symbols, tokens, ...)
    end
    
    -- main loop
-   local symtable = newScope(symbols)
+   local symtable = newScope(globals)
    while tok do
       while tok == ';' do ti() end
       processMacroCaptures()
       parseDeclaration(symtable,"global")
       processMacroCaptures()
    end
-   return symtable
+   return globals
 end
 
 
@@ -2740,16 +2821,7 @@ if DEBUG then
       local li = declarationIterator(options, io.lines(filename), filename)
       for action in li do
 	 print("+--",action)
-	 if action.type then
-	    local n = (action.sclass == '[typetag]') and "" or action.name
-	    local s = typeToString(action.type, n)
-	    if action.type.inline then s = 'inline' .. ' ' .. s end
-	    if action.sclass then s = action.sclass .. ' ' .. s end
-	    if action.intval then s = s .. ' = ' .. action.intval
-	    elseif action.init then s = s .. ' = ' .. '(..)'
-	    elseif action.body then s = s .. ' {..}' end
-	    print("|\t", s)
-	 end
+	 print("|\t",declToString(action))
       end
    end
  end
