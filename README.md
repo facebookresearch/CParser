@@ -86,6 +86,19 @@ The following options are recognized:
     useful for `#if` directives that depend on symbols
     defined by unresolved `#include` directives.
 
+- `-std=(c|gnu)(89|99|11)`  
+  This option selects a C dialect.
+  In the context of the preprocessor, this only impacts
+  the symbols predefined by `lcpp`.
+  * Symbol `__CPARSER__` is always defined with value <1>.
+  * Symbols `__STDC__` and `__STDC_VERSION__` are either defined by
+    option `-Zcppdef` or take values suitable for the target C
+    dialect.
+  * Symbols `__GNUC__` and `__GNUC_MINOR__` are either defined bu
+    option `-Zcppdef` or are defined to values `4` and `2` if the
+    target dialect starts with string `gnu`.
+  This can be adjusted using the `-D` or `-U` options.
+  
 
 ### Preprocessor extensions
 
@@ -153,39 +166,20 @@ DEFINE_VDOT(Double,double)
 DEFINE_VDOT(Int,int)
 ```
 
-  Details -- The values of the macro parameters are normally
-  macro-expanded before substituting them into the text of the
-  macro. However this macro-expansion does not happen when the
-  substitution occurs in the context of a stringification or token
-  concatenation operator.  All this is consistent with the
-  standard. The novelty is that this macro-expansion does not occur
-  either when the parameter appears in a nested preprocessor directive
-  or multiline macro.
+Details -- The values of the macro parameters are normally
+macro-expanded before substituting them into the text of the
+macro. However this macro-expansion does not happen when the
+substitution occurs in the context of a stringification or token
+concatenation operator.  All this is consistent with the standard. The
+novelty is that this macro-expansion does not occur either when the
+parameter appears in a nested preprocessor directive or multiline
+macro.
 	
-  More details: The stringification operator only works when the next
-  non-space token is a macro parameter.  This provides a good way to
-  distinguish a nested directive from a stringification operator
-  appearing in the beginning of a line.
+More details: The stringification operator only works when the next
+non-space token is a macro parameter.  This provides a good way to
+distinguish a nested directive from a stringification operator
+appearing in the beginning of a line.
 
-####  String comparison in conditional expressions
-
-The C standard specifies that the expressions following `#if`
-directives are constant expressions of integral type. However this
-processor also handles strings. The only valid operations on
-strings are the equality and ordering comparisons.
-
-  This is quite useful to special cases the parameters
-of a multiline macro as shown in the following example.
-
-```C
-     #defmacro DEFINE_DOT(TYPE)
-        #if #TYPE == "double"
-           // call blas code ...
-        #else
-           // direct implementation ...
-        #endif
-     #endmacro
-```
 
 ####  Negative comma in variadic macros
 
@@ -217,14 +211,6 @@ prevention feature is turned off when one defines a multiline macro
 with `#defrecursivemacro` instead of `#defmacro`. Note that this might
 prevent the preprocessor from terminating unless the macro eventually
 takes a conditional branch that does not recursively invoke the macro.
-
-### Predefined macros
-
-The `lcpp` preprocessor always defines symbol `__CPARSER__` with value
-`1`.  The value of symbols `__STDC__`, `__STDC_VERSION__`, `__GNUC__`,
-and `__GNUC_MINOR__` are either obtained using option `-Zcppdef` or
-dependent on the C dialect selection option `-std=`*dialect*.  All
-this is setup in function `initialDefines` in file `cparser.lua`.
 
 
 
