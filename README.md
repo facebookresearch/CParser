@@ -93,6 +93,15 @@ The `lcpp` preprocessor implements several useful nonstandard features.
 The main feature are multiline macros. The other features are mostly
 here because they make multiline macros more useful.
 
+####  String comparison in conditional expressions
+
+The C standard specifies that the expressions following `#if`
+directives are constant expressions of integral type. However this
+processor also handles strings. The only valid operations on strings
+are the equality and ordering comparisons. This is quite useful to
+make special cases for certain values of the parameters of a multiline
+macro, as shown later.
+
 ####  Multiline macros
 
 Preprocessor directives `#defmacro` and `#endmacro` can be used to
@@ -117,6 +126,32 @@ to the matching `#endmacro`. This offers several benefits:
   macros and not with ordinary preprocessor definitions. This is
   consistent with the standard behavior of these operators in ordinary
   preprocessor macros.
+
+  Example
+
+```C
+#defmacro DEFINE_VDOT(TNAME, TYPE)
+  TYPE TNAME##Vector_dot(TYPE *a, TYPE *b, int n)
+  {
+    /* try cblas */
+  #if #TYPE == "float"
+    return cblas_sdot(n, a, 1, b, 1);
+  #elif #TYPE == "double"
+    return cblas_ddot(n, a, 1, b, 1);
+  #else
+    int i;
+    TYPE s = 0;
+    for(i=0;i<n;i++)
+      s += a[i] * b[i];
+    return s;
+  #endif
+  }
+#endmacro
+
+DEFINE_VDOT(Float,float)
+DEFINE_VDOT(Double,double)
+DEFINE_VDOT(Int,int)
+```
 
   Details -- The values of the macro parameters are normally
   macro-expanded before substituting them into the text of the
@@ -148,7 +183,7 @@ of a multiline macro as shown in the following example.
            // call blas code ...
         #else
            // direct implementation ...
-	#endif
+        #endif
      #endmacro
 ```
 
