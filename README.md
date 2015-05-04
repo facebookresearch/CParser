@@ -76,14 +76,16 @@ The following options are recognized:
   This option is enabled by default (use `-Znopass` to disable)
   and indicates that the output of `lcpp` is going to be
   reprocessed by a C preprocessor and compiler.
-  When this feature is enabled,
-  * the `#pragma` and `#ident` directives are copied
-    verbatim to the output,
-  * the `#include` directives are copied to the output when
-    the included file cannot be found in the provided search path,
-  * preprocessor directives prefixed with a double `##` are
-    copied verbatim to the output with a single `#`.  This is
-    useful for `#if` directives that depend on symbols
+  This option triggers the following behavior:
+
+  * The preprocessor directives `#pragma` and `#ident`
+    are copied verbatim into the output file.
+  * When the included file cannot be found in the provided
+    search path, the preprocessor directive `#include` is
+    copied into the output file.
+  * Preprocessor directives prefixed with a double `##` are copied
+    verbatim into the output file with a single `#` prefix.  This
+    feature is useful for `#if` directives that depend on symbols
     defined by unresolved `#include` directives.
 
 - `-std=(c|gnu)(89|99|11)`  
@@ -97,6 +99,7 @@ The following options are recognized:
   * Symbols `__GNUC__` and `__GNUC_MINOR__` are either defined bu
     option `-Zcppdef` or are defined to values `4` and `2` if the
     target dialect starts with string `gnu`.
+    
   This can be further adjusted using the `-D` or `-U` options.
   
 
