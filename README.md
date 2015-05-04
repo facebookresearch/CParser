@@ -1,5 +1,21 @@
+# CParser
 
-TODO
+(C) 2015 Léon Bottou -- Facebook AI research
+
+This pure Lua module implements (1) a standard compliant C preprocessor with a couple useful extensions, and (2) a parser that provides a Lua friendly description of all declarations and definitions in a C header or C program file.
+
+The driver program `lcpp` invokes the preprocessor and outputs preprocessed code. Although it can be used as a replacement for the normal preprocessor, it is more useful as an extra preprocessing step (see option `-Zpass` which is on by default.)  The same capabilities are offered by functions `cparser.cpp` and `cparser.cppTokenIterator` prodived by the module `cparser`.
+
+The driver program `lcdecl` analyzes a C header file and a C program file and outputs a short descriptions of the declarations and definitions. This program is mostly useful to understand the representations produced by function `cparser.declarationIterator`. 
+
+## Program `lcpp`
+
+## Program `lcdecl`
+
+## Module `cparser`
+
+
+## WORK IN PROGRESS
 
 
 ```lua
