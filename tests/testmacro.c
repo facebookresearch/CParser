@@ -40,5 +40,5 @@ FORALLTYPES(DEFINE_SVV,sqrdist,((a)-(b))*((a)-(b)))
 #define DEFINE_TYPEINFO(TNAME,TYPE) { #TNAME, #TYPE },
 struct { const char *tname, *type; } typeInfo[] = {
   FORALLTYPES(DEFINE_TYPEINFO)
-}
+};
 

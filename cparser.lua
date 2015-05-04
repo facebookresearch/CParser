@@ -345,7 +345,7 @@ local function copyOptions(options)
    options = options or {}
    assert(type(options)=='table')
    local noptions = {}
-   for i,v in ipairs(options) do noptions[i]=v end
+   for k,v in pairs(options) do noptions[k]=v end
    return noptions
 end
 
@@ -357,7 +357,7 @@ local function xmessage(err, options, lineno, message, ...)
    local msg = string.format("cparser: (%s) ",lineno)
    msg = msg .. string.format(message,...)
    if options.silent then
-      if err == 'error' then error(message, 0) end
+      if err == 'error' then error(msg, 0) end
    else
       if err == 'warning' and hasOption(options, "-Werror") then err = 'error' end
       if err == 'error' or not hasOption(options, "-w") then print(msg) end
@@ -1127,14 +1127,19 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
 	 xassert(v and v == math.floor(v), options, n, "syntax error (invalid integer '%s')", tok)
 	 ti(); return v
       elseif isString(tok) then
-	 xassert(tok:find("^[\'\"]"), options, n, "syntax error (invalid value '%s')", tok)
-	 local v = tok
-	 if v:find("^'") then -- interpret character constant as number
+	 local v = '""'
+	 if tok:find("^'") then -- interpret character constant as number
 	    v = evalLuaExpression(string.format("return string.byte(%s)", tok))
-	    xassert(type(v)=='string', options, n, "syntax error (invalid value '%s')", tok)
-	    v = v:byte()
+	    xassert(type(v)=='number', options, n, "syntax error (invalid value '%s')", tok)
+	    ti()
+	 else
+	    while isString(tok) do
+	       xassert(tok:find('^"'), options, n, "syntax error (invalid value '%s')", tok)
+	       v = v:gsub('"$','') .. tok:gsub('^"','')
+	       ti()
+	    end
 	 end
-	 ti(); return v
+	 return v
       end
       xerror(options, n, "syntax error (invalid value '%s')", tok)
    end
@@ -1937,9 +1942,10 @@ local function declToString(action)
    end
    if action.intval then
       s = s .. ' = ' .. action.intval
+   elseif action.init and action.type.tag == 'Function' then
+      s = s .. "{..}"
    elseif action.init then
-      local r = (action.type.tag == 'Function') and ' {..}' or '= (...)'
-      s = s .. r
+      s = s .. "=.."
    end
    return s
 end
@@ -2040,12 +2046,12 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
    local function rsym(tok)
       local s = symtable and symtable[tok]
       xassert(s and type(s.intval)=='number', {silent=true}, n,
-	      "symbol '%s' does not resolve to a constant integer")
+	      "symbol '%s' does not resolve to a constant integer", s)
       return s.intval
    end
    local s,r = pcall(evaluateCppExpression, {silent=true}, ti, n, rsym)
-   if s and type(r)=='number' and not ti() then return r,true end
-   if s and r and type(r)~='number' then return nil,false end
+   if s and type(r)=='number' and not ti(0) then return r,true end
+   if s and type(r)~='number' and not ti(0) then return nil,false end
    -- just return an expression string
    local function spacebetween(t1,t2)
       if not t1 or not t2 then return false end
@@ -2196,9 +2202,12 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    xassert(not init,options,n,"extern declaration cannot have initializers")
 	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
 	 else
-	    local v = ty.const and init
+	    local v = ty.tag == 'Qualified' and ty.const and init
 	    if type(v) == 'table' then
 	       v = tryEvaluateConstantExpression(options,where,init,symtable)
+	    elseif type(v) == 'number' then
+	       v = init
+	       init = {tostring(v), where}
 	    end
 	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
 	 end
@@ -2664,7 +2673,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local i = 1
       local v,a = 1,0
       local ty = Enum{n=ttag}
-      local ity = namedType(globals, "int")
+      local ity = Qualified{const=true,namedType(globals, "int")}
       local where = n
       check('{') ti()
       repeat
@@ -2819,9 +2828,11 @@ if DEBUG then
    end
    function tstParse(filename,options)
       local li = declarationIterator(options, io.lines(filename), filename)
+      print("+--------------------------")
       for action in li do
-	 print("+--",action)
-	 print("|\t",declToString(action))
+	 print("|",action)
+	 print("|",declToString(action))
+      print("+--------------------------")
       end
    end
  end
