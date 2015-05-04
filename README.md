@@ -97,7 +97,7 @@ The following options are recognized:
   * Symbols `__GNUC__` and `__GNUC_MINOR__` are either defined bu
     option `-Zcppdef` or are defined to values `4` and `2` if the
     target dialect starts with string `gnu`.
-  This can be adjusted using the `-D` or `-U` options.
+  This can be further adjusted using the `-D` or `-U` options.
   
 
 ### Preprocessor extensions
@@ -143,27 +143,27 @@ to the matching `#endmacro`. This offers several benefits:
   Example
 
 ```C
-#defmacro DEFINE_VDOT(TNAME, TYPE)
-  TYPE TNAME##Vector_dot(TYPE *a, TYPE *b, int n)
-  {
-    /* try cblas */
-  #if #TYPE == "float"
-    return cblas_sdot(n, a, 1, b, 1);
-  #elif #TYPE == "double"
-    return cblas_ddot(n, a, 1, b, 1);
-  #else
-    int i;
-    TYPE s = 0;
-    for(i=0;i<n;i++)
-      s += a[i] * b[i];
-    return s;
-  #endif
-  }
-#endmacro
+      #defmacro DEFINE_VDOT(TNAME, TYPE)
+        TYPE TNAME##Vector_dot(TYPE *a, TYPE *b, int n)
+        {
+          /* try cblas */
+        #if #TYPE == "float"
+          return cblas_sdot(n, a, 1, b, 1);
+        #elif #TYPE == "double"
+          return cblas_ddot(n, a, 1, b, 1);
+        #else
+          int i;
+          TYPE s = 0;
+          for(i=0;i<n;i++)
+            s += a[i] * b[i];
+          return s;
+        #endif
+        }
+      #endmacro
 
-DEFINE_VDOT(Float,float)
-DEFINE_VDOT(Double,double)
-DEFINE_VDOT(Int,int)
+      DEFINE_VDOT(Float,float);
+      DEFINE_VDOT(Double,double);
+      DEFINE_VDOT(Int,int);
 ```
 
 Details -- The values of the macro parameters are normally
@@ -175,7 +175,7 @@ novelty is that this macro-expansion does not occur either when the
 parameter appears in a nested preprocessor directive or multiline
 macro.
 	
-More details: The stringification operator only works when the next
+More details -- The stringification operator only works when the next
 non-space token is a macro parameter.  This provides a good way to
 distinguish a nested directive from a stringification operator
 appearing in the beginning of a line.
@@ -199,6 +199,7 @@ argument. The value of parameter `__VA_ARGS__` is then a so-called
 negative comma, meaning that the preceding comma is eliminated when
 this parameter appears in the macro definition between a comma and a
 closing parenthesis.
+
 
 ####  Recursive macros
 
