@@ -20,6 +20,8 @@ definitions. This program is mostly useful to understand the
 representations produced by the `cparser` function
 `cparser.declarationIterator`.
 
+---
+
 ## Program `lcpp`
 
 ### Synopsis
@@ -27,7 +29,7 @@ representations produced by the `cparser` function
 ```sh
     lcpp [options] inputfile.c [-o outputfile.c]
 ```
-Preprocesses file `inputfile.c` and writes the preprocessed code into
+Preprocess file `inputfile.c` and write the preprocessed code into
 file `outputfile.c` or to the standard output.
 
 ### Options
@@ -101,6 +103,7 @@ The following options are recognized:
     target dialect starts with string `gnu`.
     
   This can be further adjusted using the `-D` or `-U` options.
+  The default dialect is `gnu99`.
   
 
 ### Preprocessor extensions
@@ -183,7 +186,6 @@ non-space token is a macro parameter.  This provides a good way to
 distinguish a nested directive from a stringification operator
 appearing in the beginning of a line.
 
-
 ####  Negative comma in variadic macros
 
 Consider the following variadic macro
@@ -203,7 +205,6 @@ negative comma, meaning that the preceding comma is eliminated when
 this parameter appears in the macro definition between a comma and a
 closing parenthesis.
 
-
 ####  Recursive macros
 
 When a new invocation of the macro appears in the expansion of a
@@ -216,9 +217,102 @@ with `#defrecursivemacro` instead of `#defmacro`. Note that this might
 prevent the preprocessor from terminating unless the macro eventually
 takes a conditional branch that does not recursively invoke the macro.
 
-
+---
 
 ## Program `lcdecl`
+
+
+### Synopsis
+
+```sh
+    ldecl [options] inputfile.c [-o outputfile.txt]
+```
+
+Preprocess and parse file `inputfile.c`.
+The output of a parser is a sequence of Lua data structures
+representing each C definition or declaration encountered in the code.
+Program `ldecl` prints each of them in two forms. The first form
+directly represent the Lua tables composing the data structure. The
+second form reconstructs a piece of C code representing the definition
+or declaration of interest.
+
+This program is mostly useful to people working with the Lua functions
+offered by the `cparser` module because it provides a quick way to inspect
+the resulting data structures.
+
+
+
+### Options
+
+Program `lcdecl` accepts all the preprocessing options
+documented for program `lcpp`. It also accepts an additional
+option `-T`$typename$ and also adds to the meaning of
+options `-Zpass` and `-std=`$dialect$.
+
+- `-T`$typename$   
+   Similar to `lcpp`, program `lcdecl` only reads the include files
+   that can be found along the path specified by the `-I` options. It
+   is generally not desirable to read all include files because they
+   usually contain declarations that are not directly useful. This
+   also means that the C parser is not aware of type definitions found
+   in these ignored include files. Fortunately the C syntax is
+   sufficiently unambiguous to allow the parser to guess that an
+   identifier is a type name rather than a variable name.  However
+   this can lead to confusing error messages.
+
+   Option `-T`$typename$ can then be used to inform the parser than
+   symbol `typename` represents a type and not a constant, a variable,
+   or a function.
+
+- `-Zpass`
+   Unlike `lcpp`, program `lcdecl` processes the input file
+   with option `-Zpass` off by default. Turning it on will
+   simply confuse the parser with unexpected preprocessor
+   constructs.
+
+- `-std=(c|gnu)(89|99|11)`  
+   The dialect selection options also control whether the parser
+   recognizes keywords introduced by later version of the C standard
+   (e.g., `restrict`, `_Bool`, `_Complex`, `_Atomic`, `_Pragma`,
+   `inline`) or by the GCC compiler (e.g., `asm`). Many of these
+   keywords have a double-underline-delimited variant that is
+   recognized in all cases (e.g, `__restrict__`).
+
+Example.
+
+Running `ldecl` on the following program
+
+```C
+const int size = (3+2)*2;
+float arr[size];
+typedef struct symtable_s { const char *name; SymVal value; } symtable_t;
+void printSymbols(symtable_t *p, int n) { do_something(p,n); }
+```
+
+produces the following output
+
+```
++--------------------------
+| Definition{where="test.c:2",intval=10,type=Qualified{t=Type{n="int"},const=true},name="size",init={..}}
+| const int size = 10
++--------------------------
+| Definition{where="test.c:3",intval=false,type=Array{t=Type{n="float"},size=10},name="arr"}
+| float arr[10]
++--------------------------
+| TypeDef{sclass="[typetag]",where="test.c:4",type=Struct{Pair{Pointer{t=Qualified{t=Type{n="char"},const=true}},"name"},Pair{Type{n="SymVal"},"value"},n="symtable_s"},name="struct symtable_s"}
+| [typetag] struct symtable_s{const char*name;SymVal value}
++--------------------------
+| TypeDef{sclass="typedef",where="test.c:4",type=Type{_def={..},n="struct symtable_s"},name="symtable_t"}
+| typedef struct symtable_s symtable_t
++--------------------------
+| Definition{where="test.c:5",type=Function{Pair{Pointer{t=Type{_def={..},n="symtable_t"}},"p"},Pair{Type{n="int"},"n"},t=Type{n="void"}},name="printSymbols",init={..}}
+| void printSymbols(symtable_t*p,int n){..}
++--------------------------
+```
+
+
+
+---
 
 ## Module `cparser`
 
