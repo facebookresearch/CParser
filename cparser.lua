@@ -291,8 +291,8 @@ local function newTag(tag)
 	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
 	 elseif type(k) ~= 'string' then
 	    s.extra = true
-	 elseif k:find("^_") then
-	    -- hidden field
+	 elseif k:find("^_") and type(v)=='table' then
+	    s[1+#s] = string.format("%s={..}",k) -- hidden
 	 elseif k ~= 'tag' then
 	    s[1+#s] = string.format("%s=%s",k,str(v)) end
       end
@@ -2182,8 +2182,9 @@ local function parseDeclarations(options, globals, tokens, ...)
       if sclass == 'typedef' or sclass == '[typetag]' then
 	 local nty = namedType(symtable, name)
 	 nty._def = ty
-	 dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
+	 while nty._def and nty._def._def do nty._def = nty._def._def end
 	 symtable[name] = nty
+	 dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
 	 if context == 'global' then coroutine.yield(dcl) end
 	 return
       end
@@ -2673,7 +2674,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local i = 1
       local v,a = 1,0
       local ty = Enum{n=ttag}
-      local ity = Qualified{const=true,namedType(globals, "int")}
+      local ity = Qualified{namedType(globals, "int"),const=true,_enum=ty}
       local where = n
       check('{') ti()
       repeat
