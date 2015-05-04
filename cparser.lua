@@ -2635,43 +2635,13 @@ end
 -- EXPORTS
 
 cparser = {}
+
 cparser.cpp = cpp
 cparser.cppTokenIterator = cppTokenIterator
 cparser.parse = parse
 cparser.declarationIterator = declarationIterator
 cparser.typeToString = typeToString
 cparser.declToString = declToString
-
-if DEBUG then
-   function tstInitial(filename, options)
-      options = copyOptions(options)
-      local li = wrap(options,eliminateComments,joinLines,yieldLines,io.lines(filename))
-      for s,n in li do print(string.format("(%s) %s",n,s)) end
-   end
-   function tstTokenizeLine(s,n,options)
-      options = copyOptions(options)
-      local ti = wrap(options,tokenizeLine,s,n)
-      for tok,n in ti do print(string.format("(%s) %q\t%s",n,tok,tokenType(tok))) end
-   end
-   function tstTokenize(filename, options)
-      options = copyOptions(options)
-      local ti = wrap(options,tokenize,eliminateComments,joinLines,yieldLines,io.lines(filename))
-      for tok,n in ti do print(string.format("(%s) %q\t%s",n,tok,tokenType(tok))) end
-   end
-   function tstPreprocess(filename,options)
-      local li = cppTokenIterator(options, io.lines(filename), filename)
-      for tok,n in li do print(string.format("(%s) %10s\t %s",n,tokenType(tok,true),tok)) end
-   end
-   function tstParse(filename,options)
-      local li = declarationIterator(options, io.lines(filename), filename)
-      print("+--------------------------")
-      for action in li do
-	 print("|",action)
-	 print("|",declToString(action))
-      print("+--------------------------")
-      end
-   end
- end
 
 return cparser
   
