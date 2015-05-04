@@ -1,0 +1,72 @@
+#!/usr/bin/env lua
+
+-- Front-end for the Lua C preprocessor.
+-- (C) 2015 Leon Bottou, Facebook
+
+
+cparser = require 'cparser'
+io = require 'io'
+
+local function die(s,...)
+   if s then print(string.format(s,...)) end
+   error(nil)
+end   
+
+local function usage()
+   die([[
+Usage: lcpp [options] inputfile.c [-o outputfile.c]
+Main options:
+  -Idirname        : Add dirname to the include search path
+  -I-              : Marks beginning of syste include search path
+  -Dsym[=value]    : Define a macro symbol.
+  -Usym            : Undefine a macro symbol.
+  -Zcppdef         : Extracts initial macro definitions from cpp.
+  -Znopass         : Do not copy unrecognized preprocessor directives.
+  -dM              : Dump final macro definitions.
+]])
+end
+
+local options={}
+local outputfile
+local inputfile
+
+
+local outputi
+for i,v in ipairs{...} do
+   if outputi == i then
+      outputfile = v
+   elseif v == '-o' and not outputfile then
+      outputi = i+1
+   elseif v:find("^-") then
+      options[1+#options] = v
+   elseif not inputfile then
+      inputfile = v
+   else
+      usage()
+   end
+end
+
+local function exists(fname)
+   local fd = io.open(fname,"r")
+   if fd then fd:close() return true end
+   return false
+end
+
+if not inputfile then
+   usage()
+elseif not exists(inputfile) then
+   die("cparser: cannot read file '%s'", inputfile)
+end
+
+local outputfd
+if outputfile then
+   outputfd = io.open(outputfile,"w")
+   if not outputfd then
+      die("cparser: cannot open '%s' for writing", outputfile)
+   end
+end
+
+if not pcall(cparser.cpp, inputfile, outputfd, options) then
+   die()
+end
+
