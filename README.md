@@ -289,14 +289,14 @@ typedef struct symtable_s { const char *name; SymVal value; } symtable_t;
 void printSymbols(symtable_t *p, int n) { do_something(p,n); }
 ```
 
-produces the following output
+produces the following output (with very long lines).
 
 ```
 +--------------------------
 | Definition{where="test.c:2",intval=10,type=Qualified{t=Type{n="int"},const=true},name="size",init={..}}
 | const int size = 10
 +--------------------------
-| Definition{where="test.c:3",intval=false,type=Array{t=Type{n="float"},size=10},name="arr"}
+| Definition{where="test.c:3",type=Array{t=Type{n="float"},size=10},name="arr"}
 | float arr[10]
 +--------------------------
 | TypeDef{sclass="[typetag]",where="test.c:4",type=Struct{Pair{Pointer{t=Qualified{t=Type{n="char"},const=true}},"name"},Pair{Type{n="SymVal"},"value"},n="symtable_s"},name="struct symtable_s"}
@@ -316,40 +316,139 @@ produces the following output
 
 ## Module `cparser`
 
+Module `cparser` exports the following functions:
 
-## WORK IN PROGRESS
+### Preprocessing function
 
 
+##### `cparser.cpp(filename, outputfile, options)`
+
+Program `lcpp` is implemented by function `cparser.cpp`.
+
+Calling this function preprocesses file `filename` and writes the
+preprocessed code to the specified output.  The optional argument
+`outputfile` can be a file name or a Lua file descriptor.  When this
+argument is `nil`, the preprocessed code is written to the standard
+output.  The optional argument `options` is an array of option
+strings.  All the options documented with program `lcpp` are
+supported.
+
+##### `cparser.cppTokenIterator(options, lines, prefix)`
+
+Calling this function produces two results:
+* A token iterator function.
+* A macro definition table.
+
+Argument `options` is an array of options.
+All the options documented for program `lcpp` are supported.
+Argument `lines` is an iterator that returns input lines.
+Lua provides many such iterators, including `io.lines(filename)` to
+return the lines of the file named `filename` and `filedesc:lines()`
+to return lines from the file descriptor `filedesc`. You can also use
+`string.gmatch(somestring,'[^\n]+')` to return lines from string
+`somestring`.
+
+Successive calls of the token iterator function describe the tokens of
+the preprocessed code. Each call returns two strings.  The first
+string represent the token text. The second string follows format
+`"filename:lineno"` and indicates on which line the token was
+found. The filename either is the argument `prefix` or is the actual
+name of an included file. When all the tokens have been produced, the
+token iterator function returns `nil`.
+
+Each named entry of the macro definition table contains the definition
+of the corresponding preprocessor macros. Function
+`cparser.macroToString` can be used to reconstruct the macro
+definition from this information.
+
+Example:
+```Lua
+      ti,macros = cparser.cppTokenIterator(nil, io.lines('test/testmacro.c'), 'testmacro.c')
+      for token,location in ti do
+        print(token, location)
+      end
+      for symbol,_ in pairs(macros) do
+        local s = cparser.macroToString(macros,symbol)
+	if s then print(s) end
+      end
 ```
 
- ==================================================
- CPARSER.CPPTOKENITERATOR
+##### `cparser.macroToString(macros,name)`
 
- SYNOPSIS
-  cppTokenIterator(<options>, <lines>, [<prefix>]])
-
- SUMMARY
-  Argument <lines> is an iterator that produces code lines.  This
-  function returns an iterator that produces the tokens obtained by
-  preprocessing these code lines. Each call of the token iterator
-  returns a token type, a token string, and a location string. Space
-  tokens are filtered out. Therefore the token types are 'number',
-  'string', 'keyword', 'punctuator', and 'identifier'.  The location
-  string follows the pattern <"filename:linenumber">. Optional
-  argument <prefix> specifies the initial filename.  
-     See the description of <cparser.cpp> for the options
-  and extensions supported by the token iterator. Note that
-  option <-Zpass> is no longer on by default.
-
- EXAMPLE
-  The following lua expression returns tokens for file <f>:
-
-  for typ,tok,n in cparser.cppTokenIterator({},io.lines(f),f) do
-      print(typ,tok,n)
-  end
-
- ==================================================
+This function returns a string representing the definition
+of the preprocessor macro `name` found in macro definition table `macros`.
+It returns `nil` if no such macro is defined.
+Note that the macro definition table contains named entries that
+are not macro definitions but functions implementing
+magic symbols such as `__FILE__` or `__LINE__`.
 
 
 
-```lua
+### Parsing functions
+
+##### `cparser.parse(filename, outputfile, options)`
+
+Program `lcdecl` is implemented by function `cparser.parse`.
+
+Calling this function preprocesses and parses file `filename` and
+writes a trace into the specified file. The optional argument
+`outputfile` can be a file name or a Lua file descriptor.  When this
+argument is `nil`, the preprocessed code is written to the standard
+output.  The optional argument `options` is an array of option
+strings.  All the options documented with program `lcdecl` are
+supported.
+
+
+##### `cparser.declarationIterator(options, lines, prefix)`
+
+Calling this function produces three results:
+* A declaration iterator function.
+* A symbol table.
+* A macro definition table.
+
+Argument `options` is an array of options.
+All the options documented for program `lcdecl` are supported.
+Argument `lines` is an iterator that returns input lines.
+Lua provides many such iterators, including `io.lines(filename)` to
+return the lines of the file named `filename` and `filedesc:lines()`
+to return lines from the file descriptor `filedesc`. You can also use
+`string.gmatch(somestring,'[^\n]+')` to return lines from string
+`somestring`.
+
+Successive calls of the declaration iterator function
+returns a Lua data structure that represents a C name
+declaration or definition. The format of these
+data structures is described under function
+`cparser.declToString`.
+
+The symbol table contains the definition of all
+the C language identifiers defined or declared
+by the parsed files. Type names are represented
+by the `Type{}` data structure documented under
+function `cparser.typeToString`. Constants,
+variables, and functions are represented
+by `Definition{}` or `Declaration{}`
+data structures similar to those returned
+by the declaration iterator.
+
+The macro definition table contains
+the definition of the preprocessor macro.
+See the preprocessor documentation for details.
+
+Example
+
+```Lua
+      di = cparser.declarationIterator(nil, io.lines('tests/testmacro.c'), 'testmacro.c')
+      for decl in di do print(decl) print(">>", cparser.declToString(decl)) end
+```
+
+
+##### `cparser.typeToString(ty,nam)`
+
+
+
+
+##### `cparser.declToString(decl)`
+
+
+

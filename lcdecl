@@ -64,6 +64,6 @@ if outputfile then
    end
 end
 
-if not pcall(cparser.parse, inputfile, outputfd, options) then
-   die()
-end
+local s,m = pcall(cparser.parse, inputfile, outputfd, options)
+if io.type(outputfd)=='file' then outputfd:close() end
+if not s then die() end

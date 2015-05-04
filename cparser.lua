@@ -1363,32 +1363,56 @@ local function initialMacros(options)
 end
 
 
--- This function dumps the macros
+-- This function prepares a string containing the definition of the
+-- macro named <name> in macro definition table <macros>, or nil if no
+-- such definition exists.
+
+local function macroToString(macros, name)
+   local v = macros[name]
+   if type(v) == 'table' then
+      local dir = 'define'
+      if v.recursive and v.lines then dir = 'defrecursivemacro' end
+      if v.lines then dir = 'defmacro' end
+      local arr = {"#", dir, ' ', name }
+      if v.args then
+	 arr[1+#arr] = '('
+	 for i,s in ipairs(v.args) do
+	    if i ~= 1 then arr[1+#arr] = ',' end
+	    arr[1+#arr] = s == '__VA_ARGS__' and '...' or s 
+	 end
+	 arr[1+#arr] = ') '
+      else
+	 arr[1+#arr] = ' '
+      end
+      for i,s in ipairs(v) do
+	 arr[1+#arr] = s
+      end
+      if v.lines then
+	 for i = 1, #v.lines, 2 do
+	    local v = v.lines[i]
+	    arr[1+#arr] = '\n'
+	    if type(v)=='table' then v=table.concat(v) end
+	    arr[1+#arr] = v:gsub('^%s?%s?','  '):gsub('^\n','')
+	 end
+	 arr[1+#arr] = '\n'
+	 arr[1+#arr] = "#endmacro"
+      end
+      return table.concat(arr)
+   end
+end
+
+-- This function dumps all macros to file descriptor outputfile
 
 local function dumpMacros(macros, outputfile)
    outputfile = outputfile or io.output()
    assert(type(macros) == 'table')
    assert(io.type(outputfile) == 'file')
    for k,v in pairs(macros) do
-      if type(v) == 'table' then
-	 local a = ""
-	 if v.args then a = table.concat(v.args,','):gsub("(,?)__VA_ARGS__$", "%1...") end
-	 if v.args then a = "(" .. a .. ")" end
-	 local dir = 'define'
-	 if v.recursive and v.lines then dir = 'defrecursivemacro' end
-	 if v.lines then dir = 'defmacro' end
-	 outputfile:write(string.format("#%s %s%s %s\n", dir, k, a, table.concat(v)))
-	 if v.lines then
-	    for i = 1, #v.lines, 2 do
-	       local v = v.lines[i]
-	       if type(v)=='table' then v=table.concat(v) end
-	       outputfile:write(string.format("%s\n", v:gsub('^%s?%s?','  '):gsub('^\n','')))
-	    end
-	    outputfile:write("#endmacro\n")
-	 end
-      end
+      local s = macroToString(macros,k)
+      if s then outputfile:write(string.format("%s\n", s)) end
    end
 end
+
 
 
 -- A coroutine that filters out spaces and directives.
@@ -2012,7 +2036,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    xassert(not init,options,n,"extern declaration cannot have initializers")
 	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
 	 else
-	    local v = ty.tag == 'Qualified' and ty.const and init
+	    local v = ty.tag == 'Qualified' and ty.const and init or nil
 	    if type(v) == 'table' then
 	       v = tryEvaluateConstantExpression(options,where,init,symtable)
 	    elseif type(v) == 'number' then
@@ -2638,6 +2662,8 @@ cparser = {}
 
 cparser.cpp = cpp
 cparser.cppTokenIterator = cppTokenIterator
+cparser.macroToString = macroToString
+
 cparser.parse = parse
 cparser.declarationIterator = declarationIterator
 cparser.typeToString = typeToString
