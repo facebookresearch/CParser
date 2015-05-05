@@ -1004,7 +1004,6 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
    return result
 end
 
-   
 
 -- Now dealing with the coroutine thay processes all directives.
 -- This coroutine obtains lines from coroutine <lines>,
@@ -1019,6 +1018,20 @@ processDirectives = function(options, macros, lines, ...)
    local dirtok, tok, spc
    -- forward declaration
    local function processLine(okElif) end
+   -- the captureTable mechanism communicates certain preprocessor
+   -- events to the declaration parser in order to report them
+   -- to the user (the parsing does not depend on this).
+   -- if macros[1] is a table, the preprocessor will append
+   -- records to this table for the parser to process.
+   local function hasCaptureTable()
+      local captable = rawget(macros,1)
+      return captable and type(captable)=='table' and captable
+   end
+   local function addToCaptureTable(record)
+      local captable = hasCaptureTable()
+      if captable and record then captable[1+#captable] = record end
+   end
+   
    -- simple directives
    local function doIgnore(ti)
       if hasOption(options, "-Zpass") then coroutine.yield(s, n) end
@@ -1033,10 +1046,14 @@ processDirectives = function(options, macros, lines, ...)
    -- undef
    local function doUndef(ti)
       ti()
-      xassert(isIdentifier(tok), options, n, "symbol expected after #undef")
-      if hasOption(options, "-d:defines") then xdebug(n, "undef %s", tok) end
-      macros[tok] = false -- intentional
+      local nam = tok
+      xassert(isIdentifier(nam), options, n, "symbol expected after #undef")
       if ti() then xwarning(options, n, "garbage after #undef directive") end
+      if hasOption(options, "-d:defines") then xdebug(n, "undef %s", nam) end
+      if hasCaptureTable() and macros[nam] and macros[nam].captured then
+	 addToCaptureTable{directive='undef',name=nam, where=n}
+      end
+      macros[nam] = false -- false overrides inherited definitions
    end
    -- define
    local function getMacroArguments(ti)
@@ -1074,21 +1091,22 @@ processDirectives = function(options, macros, lines, ...)
       if macros[nam] and not tableCompare(def,macros[nam]) then
 	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
       end
+      macros[nam] = def
+      -- debug
       if hasOption(options, "-d:defines") then
 	 if args then args = "(" .. table.concat(args,",") .. ")" else args = "" end
 	 xdebug(n, "define %s%s = %s", nam, args, table.concat(def,' '))
       end
-      macros[nam] = def
-      -- this hack is used to capture integer macro definitions in the declarationparser
-      -- index 1 will not collide with any symbol because it is a number.
-      -- see function processMacroCapture in parseDeclarations below.
-      local captureTable = rawget(macros,1)
-      if args == nil and type(captureTable) == 'table' then
+      -- capture integer macro definitions
+      if hasCaptureTable() and args == nil then
 	 local i = 0
 	 local v = callAndCollect(options, expandMacros, macros, yieldFromArray, def, n)
 	 local function ti() i=i+1 return v[i] end
 	 local s,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
-	 if s and type(r)=='number' then captureTable[nam] = {name=nam,intval=r,where=n} end
+	 if s and type(r)=='number' then
+	    def.captured = true
+	    addToCaptureTable{directive='define', name=nam, intval=r, where=n}
+	 end
       end
    end
    -- defmacro
@@ -1173,17 +1191,22 @@ processDirectives = function(options, macros, lines, ...)
 	 processDirectives(options, macros, eliminateComments, joinLines,
 			   yieldLines, fd:lines(), pname)
 	 options.includedir = savedfdi
-      elseif hasOption(options, "-Zpass") then
-	 -- include file not found: pass preprocessed directive
-	 coroutine.yield(string.format("#include %s",tok), n)
-      elseif knownIncludeQuirks[tok] then
-	 -- include file not found but known quirks
-	 xwarning(options, n, "include directive (%s) was unresolved but has known quirks", tok)
-	 processDirectives(options, macros, eliminateComments,
-			   yieldFromArray, knownIncludeQuirks[tok], n)
       else
 	 -- include file not found
-	 xwarning(options, n, "include directive (%s) was unresolved", tok)
+	 if hasOption(options, "-Zpass") then
+	    coroutine.yield(string.format("#include %s",tok), n)
+	 else
+	    xwarning(options, n, "include directive (%s) was unresolved", tok)
+	 end
+	 -- quirks
+	 if knownIncludeQuirks[tok] then
+	    processDirectives(options, macros, eliminateComments,
+			      yieldFromArray, knownIncludeQuirks[tok], n)
+	 end
+	 -- capture
+	 if hasCaptureTable() then
+	    addToCaptureTable{directive='include',name=tok, where=n}
+	 end
       end
    end
    -- conditionals
@@ -1804,35 +1827,38 @@ end
 -- <type> contains the type, field <init> optionally contain the
 -- initialization or the function body. Field <sclass> contains the
 -- storage class such as <extern>, <static>, <auto>. Special storage
--- class '[enum]' is used to define enumeration constants. Special
--- storage class '[cpp]' is used to communicate certain preprocessor
--- constants. Table TypeDef{} represents type definitions and contains
--- pretty much the same fields. Note that storage class <typedef> is
--- used for an actual <typedef> and storage class <[typetag]> is used
--- when the type definition results from a tagged structure union or
--- enum.
+-- class '[enum]' is used to define enumeration constants.  Table
+-- TypeDef{} represents type definitions and contains pretty much the
+-- same fields. Note that storage class <typedef> is used for an
+-- actual <typedef> and storage class <[typetag]> is used when the
+-- type definition results from a tagged structure union or enum.
+-- CppEvent{} is used to report captured cpp events.
 
 local TypeDef = newTag('TypeDef')
 local Definition = newTag('Definition')
 local Declaration = newTag('Declaration')
+local CppEvent = newTag('CppEvent')
 
 local function declToString(action)
-   local n = (action.sclass == '[typetag]') and "" or action.name
-   local s = typeToString(action.type, n)
-   if action.type.inline then
-      s = 'inline' .. ' ' .. s
+   local tag = action and action.tag
+   if tag == 'TypeDef' or tag == 'Definition' or tag == 'Declaration' then
+      local n = (action.sclass == '[typetag]') and "" or action.name
+      local s = typeToString(action.type, n)
+      if action.type.inline then
+	 s = 'inline' .. ' ' .. s
+      end
+      if action.sclass then
+	 s = action.sclass .. ' ' .. s
+      end
+      if action.intval then
+	 s = s .. ' = ' .. action.intval
+      elseif action.init and action.type.tag == 'Function' then
+	 s = s .. "{..}"
+      elseif action.init then
+	 s = s .. "=.."
+      end
+      return s
    end
-   if action.sclass then
-      s = action.sclass .. ' ' .. s
-   end
-   if action.intval then
-      s = s .. ' = ' .. action.intval
-   elseif action.init and action.type.tag == 'Function' then
-      s = s .. "{..}"
-   elseif action.init then
-      s = s .. "=.."
-   end
-   return s
 end
 
 
@@ -2589,13 +2615,9 @@ local function parseDeclarations(options, globals, tokens, ...)
    -- the evaluation is successful, it adds it to the table.
    local function processMacroCaptures()
       local macros = options.macros
-      local ity = Qualified{const=true}
-      if type(macros) == 'table' and type(macros[1]) == 'table' then
-	 for k,v in pairs(macros[1]) do
-	    local a = Definition{where=v.where, name=k, type=ity,
-				 intval=v.intval, sclass='[cpp]'}
-	    coroutine.yield(a)
-	 end
+      local captable = macros and macros[1]
+      if type(captable) == 'table' then
+	 for i,v in ipairs(captable) do coroutine.yield(CppEvent(v)) end
 	 macros[1] = {}
       end
    end
@@ -2680,14 +2702,12 @@ local function parse(filename, outputfile, options)
    local li = declarationIterator(options, io.lines(filename), filename)
    outputfile:write("+--------------------------\n")
    for action in li do
+      local s = declToString(action)
       outputfile:write(string.format("| %s\n", action))
-      outputfile:write(string.format("| %s\n", declToString(action)))
+      if s then outputfile:write(string.format("| %s\n", s)) end
       outputfile:write("+--------------------------\n")
    end
 end
-
-
-
 
 
 ---------------------------------------------------

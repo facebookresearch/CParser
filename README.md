@@ -412,21 +412,17 @@ to return lines from the file descriptor `filedesc`. You can also use
 `string.gmatch(somestring,'[^\n]+')` to return lines from string
 `somestring`.
 
-Successive calls of the declaration iterator function
-returns a Lua data structure that represents a C name
-declaration or definition. The format of these
-data structures is described under function
-`cparser.declToString`.
+Successive calls of the declaration iterator function returns a Lua
+data structure that represents declarations, definitions, and certain
+preprocessor events.  The format of these data structures is described
+under function `cparser.declToString`.
 
-The symbol table contains the definition of all
-the C language identifiers defined or declared
-by the parsed files. Type names are represented
-by the `Type{}` data structure documented under
-function `cparser.typeToString`. Constants,
-variables, and functions are represented
-by `Definition{}` or `Declaration{}`
-data structures similar to those returned
-by the declaration iterator.
+The symbol table contains the definition of all the C language
+identifiers defined or declared by the parsed files. Type names are
+represented by the `Type{}` data structure documented under function
+`cparser.typeToString`. Constants, variables, and functions are
+represented by `Definition{}` or `Declaration{}` data structures
+similar to those returned by the declaration iterator.
 
 The macro definition table contains
 the definition of the preprocessor macro.
@@ -556,29 +552,23 @@ definition or declaration.
   Field `sclass` can be empty, `"extern"`, or `"static"`.
 
 * `Definition{name=n,sclass=s,type=ty...}` represents the definition
-   of a constant, a variable, or a function. Field `name` again gives
-   the name, field `type` gives its type, and field <sclass> the
-   storage class. In addition, field `init` optionally contains an
-   array of tokens and token locations representing the constant
-   value, the variable initialization or the function body, and a
-   field `intval` containing the value of a constant integer.  Field
-   `intval` works like the field `size` of the `Array{}` construct: it
-   often contains a small integer but sometimes contains a string
-   representing the C expression that the parser was unable to
-   evaluate for one reason or another.
+  of a constant, a variable, or a function. Field `name` again gives
+  the name, field `type` gives its type, field `sclass` gives its
+  storage class, and field `init` may contain an array of tokens and
+  token locations representing a variable initializer or a function
+  body. Constant definitions may also have a field `intval` contaning
+  the value of an integer constant. This field works like the size of
+  an array: it often contains a small integer but can also contains a
+  string representing the C expression that the parser was unable to
+  evaluate for one reason or another. Enumeration constants are
+  reported with storage class `"[enum]"` and with a constant integer
+  type containing an additional field `_enum` that points to the
+  corresponding enumerated type.
 
-   There are two special uses of the `Definition{}` construct.
-
-   * When field `sclass` is the string `"[enum]"`, this construct
-     represents the definition of an enumeration constant. The `type`
-     field is then `Qualified{t=Type{n="int"},const=true}` with an
-     additional field `_enum` that points to the definition of the
-     enumerated type.
-   * When field `sclass` is the string `"[cpp]"`, this construct
-     represents the definition of a preprocessor symbol with
-     an integer value. This can be useful because many
-     libraries define their constants using the preprocessor
-     rather than using enum types. This is also limited
-     because the parser does not report when a preprocessor
-     symbol is undefined. One must inspect the macro
-     definition table to do this correctly.
+* `CppEvent{directive=dir,...}` describes certain preprocessor events
+  that are potentially relevant to a C API.  In particular, the
+  definition of an object-like macro with an integer value is reported
+  as `CppEvent{directive="define",name="symbol",intval=value}` and
+  its deletion as `CppEvent{directive="undef",name="symbol"}`.
+  Finally, `CppEvent{directive="include",name="filespec"}` indicates
+  that an include directive was not resolved.
