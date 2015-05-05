@@ -250,26 +250,23 @@ option `-T`*typename* and also adds to the meaning of
 options `-Zpass` and `-std=`*dialect*.
 
 - `-T`*typename*   
-   Similar to `lcpp`, program `lcdecl` only reads the include files
-   that can be found along the path specified by the `-I` options. It
-   is generally not desirable to read all include files because they
-   usually contain declarations that are not directly useful. This
-   also means that the C parser is not aware of type definitions found
-   in these ignored include files. Fortunately the C syntax is
-   sufficiently unambiguous to allow the parser to guess that an
-   identifier is a type name rather than a variable name.  However
-   this can lead to confusing error messages.
-
-   Option `-T`*typename* can then be used to inform the parser than
-   symbol `typename` represents a type and not a constant, a variable,
-   or a function.
+   Similar to `lcpp`, program `lcdecl` only reads the include files that
+   are found along the path specified by the `-I` options. It is
+   generally not desirable to read all include files because they
+   often contain declarations that are not directly useful. This also
+   means that the C parser may not be aware of type definitions found
+   in ignored include files. Although the C syntax is sufficiently
+   unambiguous to allow the parser to guess that an identifier is a
+   type name rather than a variable name, this can lead to confusing
+   error messages. Option `-T`*typename* can then be used to inform
+   the parser than symbol `typename` represents a type and not a
+   constant, a variable, or a function.
 
 - `-Zpass`
    Unlike `lcpp`, program `lcdecl` processes the input file
    with option `-Zpass` off by default. Turning it on will
-   simply confuse the parser with unexpected preprocessor
-   constructs.
-
+   just eliminate potentially useful warning messages.
+   
 - `-std=(c|gnu)(89|99|11)`  
    The dialect selection options also control whether the parser
    recognizes keywords introduced by later version of the C standard
