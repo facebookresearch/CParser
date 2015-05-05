@@ -468,10 +468,10 @@ and corresponds to
       {
         tag="Qualified",
         const=true,
-	t= {
+        t= {
              tag="Type",
              n = "int"
-	   }
+           }
       }
 ```
 
