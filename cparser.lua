@@ -2564,11 +2564,10 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    -- main loop
-   local symtable = newScope(globals)
    while tok do
       while tok == ';' do ti() end
       processMacroCaptures()
-      parseDeclaration(symtable,"global")
+      parseDeclaration(globals,"global")
       processMacroCaptures()
    end
    return globals
