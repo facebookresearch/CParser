@@ -90,6 +90,10 @@ local function newTag(tag)
 	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
 	 elseif type(k) ~= 'string' then
 	    s.extra = true
+ elseif k == 'attr' and type(v)=='table' then
+ local z=''
+ for i=1,#v,2 do z = z..v[i] end
+ s[1+#s]=string.format("%s=%q",k,z)
 	 elseif k:find("^_") and type(v)=='table' then
 	    s[1+#s] = string.format("%s={..}",k) -- hidden
 	 elseif k ~= 'tag' then
@@ -209,6 +213,24 @@ local function tableCompare(a,b)
       return false
    end
 end
+
+-- Concatenate two possibly null arrays
+
+local function tableAppend(a1, a2)
+   if not a1 then
+      return a2
+   elseif not a2 then
+      return a1
+   else
+      local a = {}
+      for i,v in ipairs(a1) do a[1+#a] = v end
+      for i,v in ipairs(a2) do a[1+#a] = v end
+      return a
+   end
+end
+
+
+
 
 
 -- Evaluate a lua expression, return nil on error.
@@ -1615,13 +1637,20 @@ local function compareTypes(t1, t2, oki)
       return compareTypes(t1._def, t2, oki)
    elseif t2.tag == 'Type' and t2._def then
       return compareTypes(t1, t2._def, oki)
+   elseif t1.tag == 'Qualified' or t2.tag == 'Qualified' then
+      if t1.tag ~= 'Qualified' then
+	 return compareTypes(Qualified{t=t1},t2)
+      elseif t2.tag ~= 'Qualified' then
+	 return compareTypes(t1,Qualified{t=t2})
+      else
+	 if t1.const ~= t2.const then return false end
+	 if t1.volatile ~= t2.volatile then return false end
+	 if t1.restrict ~= t2.restrict then return false end
+	 if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
+	 return compareTypes(t1.t, t2.t, oki)
+      end
    elseif t1.tag ~= t2.tag then
       return false
-   elseif t1.tag == 'Qualified' then
-      if t1.const ~= t2.const then return false end
-      if t1.volatile ~= t2.volatile then return false end
-      if t1.restrict ~= t2.restrict then return false end
-      return compareTypes(t1.t, t2.t, oki)
    elseif t1.tag == 'Array' then
       if compareTypes(t1.t, t2.t, oki) then
 	 if t1.size == t2.size then return true end
@@ -1632,6 +1661,7 @@ local function compareTypes(t1, t2, oki)
       end
    elseif t1.tag == 'Function' then
       if compareTypes(t1.t, t2.t, oki) then
+	 if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
 	 if t1.withoutProto or t2.withoutProto then
 	    if t1.withoutProto and t2.withoutProto then return true end
 	    if oki == 1 and t1.withoutProto then
@@ -1658,6 +1688,7 @@ local function compareTypes(t1, t2, oki)
 	 if t1[i].bitfield ~= t2[i].bitfield then return false end
 	 if not compareTypes(t1[i][1],t2[i][1],oki) then return false end
       end
+      if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
       if t1.n == t2.n then return true end
       if t1.n == nil or t2.n == nil then
 	 if oki == 1 and t1.n == nil then t1.n = t2.n end
@@ -1839,22 +1870,6 @@ local function lookaheadTokenIterator(ti)
    end
 end
 
--- Concatenate two possibly null arrays
-
-local function appendSequences(a1, a2)
-   if not a1 then
-      return a2
-   elseif not a2 then
-      return a1
-   else
-      local a = {}
-      for i,v in ipairs(a1) do a[1+#a] = v end
-      for i,v in ipairs(a2) do a[1+#a] = v end
-      return a
-   end
-end
-
-
 -- Evaluation of constant expression.
 --   We avoid writing a complete expression parser by reusing the cpp
 -- expression parser and either returning an integer (when we can
@@ -2016,7 +2031,6 @@ local function parseDeclarations(options, globals, tokens, ...)
       if sclass == 'typedef' or sclass == '[typetag]' then
 	 local nty = namedType(symtable, name)
 	 nty._def = ty
-	 while nty._def and nty._def._def do nty._def = nty._def._def end
 	 symtable[name] = nty
 	 dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
 	 if context == 'global' then coroutine.yield(dcl) end
@@ -2140,7 +2154,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    local function collectAttributes(arr)
       while isAttribute() do
          arr = arr or {}
-         if tok~='[' then arr[1+#arr]=tok; ti() end
+         if tok~='[' then arr[1+#arr]=tok; arr[1+#arr]=n; ti() end
          if tok=='(' or tok =='[' then skipPar(arr) end
       end
       return arr
@@ -2260,9 +2274,10 @@ local function parseDeclarations(options, globals, tokens, ...)
    parseDeclarator = function(ty, extra, symtable, context, abstract)
       -- because of the curious syntax of c types, it turns out that
       -- it is easier to construct the chain of types in reverse
+      local attr = collectAttributes()
+      local where = n
       local name
-      local parseRev
-      parseRev = function()
+      local function parseRev()
 	 local ty
 	 if isName(tok) then
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
@@ -2276,20 +2291,25 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    ti()
 	    local nt, pt
 	    while tok=='const' or tok=='volatile'
-	    or specifierTable[tok]=='restrict' do
+	    or specifierTable[tok]=='restrict' or isAttribute(tok) do
 	       nt = nt or Qualified{}
-	       nt[specifierTable[tok]] = true
-	       ti()
+	       if isAttribute(tok) then
+		  nt.attr = collectAttributes(nt.attr)
+	       else
+		  nt[specifierTable[tok]] = true
+		  ti()
+	       end
 	    end
 	    pt = parseRev()
 	    if nt then nt.t = pt; pt = nt; end
 	    ty = Pointer{t=pt, block=block}
 	 elseif tok == '(' then
 	    ti()
-	    local p = specifierTable[tok] or isTypeName(tok) or tok == ')'
+	    local p = specifierTable[tok] or isTypeName(tok) or isAttribute(tok) or tok == ')'
 	    if abstract and p then
 	       ty = parsePrototype(ty,symtable,context,abstract)
 	    else
+	       attr = collectAttributes(attr)
 	       ty = parseRev()
 	       check(')') ti()
 	    end
@@ -2300,13 +2320,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    if tok == '(' then ti()
 	       ty = parsePrototype(ty,symtable,context,abstract)
 	       check(")") ti()
-               while isAttribute() or tok == 'const' do
-                  if tok == 'const' or tok == 'volatile' then 
-                     ty[tok] = true; ti() 
-                  else 
-                     ty.attr = collectAttributes(ty.attr) 
-                  end
-               end
+	       ty.attr = collectAttributes(ty.attr)
 	    elseif tok == '[' then -- array
 	       xassert(ty==nil or ty.tag ~= 'Function', options,n,
 		       "functions cannot return arrays (they can return pointers)")
@@ -2330,7 +2344,6 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 return ty
       end
       -- get reversed type and reverse it back
-      local where = n
       local rty = parseRev()
       while rty do
 	 local nty = rty.t
@@ -2343,12 +2356,24 @@ local function parseDeclarations(options, globals, tokens, ...)
                     "invalid use of code block operator '^'")
          end
       end
-      -- finalize
+      attr = collectAttributes(attr)
+      -- distribute inlines and attributes
       if extra.inline then
-	 xassert(ty.tag == 'Function', options, where, "only functions can be declared inline")
-	 ty.inline = true
+	 local tt = ty
+	 while tt and tt.tag ~= 'Function' do tt=tt.t end
+	 xassert(tt, options, where, "only functions can be declared inline")
+	 tt.inline = true
       end
-      ty.attr = appendSequences(extra.attr, collectAttributes(ty.attr))
+      attr = tableAppend(extra.attr, attr)
+      if attr then
+	 local tt = ty
+	 local function canHaveAttributes(tag)
+	    return tag=='Function' or tag=='Struct' or tag=='Union'
+	       or tag=='Enum' or tag=='Qualified' 
+	 end
+	 while tt and not canHaveAttributes(tt.tag) do tt=tt.t end
+	 if tt then tt.attr = attr else ty=Qualified{attr=attr,t=ty} end
+      end
       -- return
       xassert(abstract or name, options, n, "an identifier was expected")
       return name, ty, extra.sclass
@@ -2432,6 +2457,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
       if isName(tok) then ttag=tok; tnam=kind..' '..ttag; nn.newtype=true; ti() end
+      nn.attr = collectAttributes(nn.attr)
       if ttag and tok ~= '{' then return namedType(symtable, tnam) end
       -- parse real struct definition
       local ty
@@ -2486,6 +2512,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if tok == ';' then ti() end
       end
       check("}") ti()
+      nn.attr = collectAttributes(nn.attr)
       -- change tagged type as newtype
       if ttag then
 	 nn.newtype = true
@@ -2501,6 +2528,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
       if isName(tok) then ttag=tok; tnam=kind..' '..ttag; nn.newtype=true; ti() end
+      nn.attr = collectAttributes(nn.attr)
       if ttag and tok ~= '{' then return namedType(symtable, tnam) end
       -- parse real struct definition
       local i = 1
@@ -2535,6 +2563,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if tok == ',' then ti() else check(',','}') end
       until tok == nil or tok == '}' 
       check('}') ti()
+      nn.attr = collectAttributes(nn.attr)
       -- change tagged type as newtype
       nn.newtype = true
       if ttag then

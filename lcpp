@@ -68,6 +68,6 @@ end
 
 local s,m = pcall(cparser.cpp, inputfile, outputfd, options)
 if io.type(outputfd)=='file' then outputfd:close() end
-if not s then die() end
+if not s then die( not m:find("aborted") and m ) end
 
 

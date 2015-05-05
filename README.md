@@ -525,14 +525,16 @@ The following tags are used to represent types.
   when the function does not provide a prototype.  Otherwise the
   arguments are described by `Pair{type,name}` located as integer
   indices. The prototype of variadic functions end with a
-  `Pair{ellipsis=true}` to represent the `...` argument.  Function
-  nodes can also contain fields `inline`, `const`, and `volatile` to
-  represent the corresponding properties. The array `attr` contains
-  token strings (at odd indices) and location strings (at even
-  indices) representing the concatenated function attributes declared
-  using the MSVC `__declspec(...)` or the GCC `__asm__()` and
-  `__attribute__((...))`  extensions. This array contains alternating
-  token strings and location strings.
+  `Pair{ellipsis=true}` to represent the `...` argument.
+
+The `Qualified{}`, `Function{}`, `Struct{}`, `Union{}`, and `Enum{}`
+tables may additionally have a field `attr` whose contents represents
+attribute information, such as C11 attributes `[[...]]`, MSVC-style
+attributes `__declspec(...)` or GNU attributes `__attribute__(...)`.
+This is representing by an array containing all the attribute tokens
+(on odd indices) and their locations (on even indices).  Function
+`typeToString` does not currently print these attributes.
+
 
 
 ##### `cparser.declToString(decl)`
