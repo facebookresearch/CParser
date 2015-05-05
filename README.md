@@ -246,10 +246,10 @@ the resulting data structures.
 
 Program `lcdecl` accepts all the preprocessing options
 documented for program `lcpp`. It also accepts an additional
-option `-T`$typename$ and also adds to the meaning of
-options `-Zpass` and `-std=`$dialect$.
+option `-T`*typename* and also adds to the meaning of
+options `-Zpass` and `-std=`*dialect*.
 
-- `-T`$typename$   
+- `-T`*typename*   
    Similar to `lcpp`, program `lcdecl` only reads the include files
    that can be found along the path specified by the `-I` options. It
    is generally not desirable to read all include files because they
@@ -260,7 +260,7 @@ options `-Zpass` and `-std=`$dialect$.
    identifier is a type name rather than a variable name.  However
    this can lead to confusing error messages.
 
-   Option `-T`$typename$ can then be used to inform the parser than
+   Option `-T`*typename* can then be used to inform the parser than
    symbol `typename` represents a type and not a constant, a variable,
    or a function.
 
@@ -369,7 +369,7 @@ Example:
       end
       for symbol,_ in pairs(macros) do
         local s = cparser.macroToString(macros,symbol)
-	if s then print(s) end
+        if s then print(s) end
       end
 ```
 
@@ -469,8 +469,8 @@ and corresponds to
         tag="Qualified",
         const=true,
 	t= {
-	     tag="Type",
-	     n = "int"
+             tag="Type",
+             n = "int"
 	   }
       }
 ```
