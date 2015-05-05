@@ -2056,8 +2056,6 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if odcl and samescope then
 	    if dcl.tag == 'Definition' and odcl.tag == 'Definition'
 	    or not compareTypes(dcl.type,odcl.type,true) then
-	       print("***0",dcl)
-	       print("***1",odcl)
 	       xerror(options,where,
 		      "%s of symbol '%s' conflicts with earlier %s at %s",
 		      string.lower(dcl.tag), name,

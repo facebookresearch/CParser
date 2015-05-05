@@ -537,12 +537,11 @@ The following tags are used to represent types.
 
 ##### `cparser.declToString(decl)`
 
-This function produces a string that describes
-the data structures returned by the declaration iterator.
-There are in fact three kinds of data structures.
-All these structures have very similar fields.
-In particular, field `where` always contains the location
-of the definition or declaration.
+This function produces a string that describes the data structures
+returned by the declaration iterator.  There are in fact three kinds
+of data structures.  All these structures have very similar fields.
+In particular, field `where` always contains the location of the
+definition or declaration.
 
 * `TypeDef{name=n,sclass=s,type=ty}` represents a type definition.
   This construct is produced in two different situations.  When the C
