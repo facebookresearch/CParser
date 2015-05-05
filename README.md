@@ -531,7 +531,7 @@ The following tags are used to represent types.
   token strings (at odd indices) and location strings (at even
   indices) representing the concatenated function attributes declared
   using the MSVC `__declspec(...)` or the GCC `__asm__()` and
-  `__attribute__((...))  extensions. This array contains alternating
+  `__attribute__((...))`  extensions. This array contains alternating
   token strings and location strings.
 
 
