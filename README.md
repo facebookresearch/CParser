@@ -295,7 +295,7 @@ produces the following output (with very long lines).
 | float arr[10]
 +--------------------------
 | TypeDef{sclass="[typetag]",where="test.c:4",type=Struct{Pair{Pointer{t=Qualified{t=Type{n="char"},const=true}},"name"},Pair{Type{n="SymVal"},"value"},n="symtable_s"},name="struct symtable_s"}
-| [typetag] struct symtable_s{const char*name;SymVal value}
+| [typetag] struct symtable_s{const char*name;SymVal value;}
 +--------------------------
 | TypeDef{sclass="typedef",where="test.c:4",type=Type{_def={..},n="struct symtable_s"},name="symtable_t"}
 | typedef struct symtable_s symtable_t

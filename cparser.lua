@@ -1820,7 +1820,7 @@ local function typeToString(ty, nam)
 	 local s = string.lower(ty.tag)
 	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
 	 if ty.n then s = s .. ' ' .. ty.n end
-	 return s .. '{' .. makelist(ty,';') .. '}' .. nam
+	 return s .. '{' .. makelist(ty,';') .. ';}' .. nam
       end
    end
 end
