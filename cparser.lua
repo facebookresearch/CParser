@@ -1164,7 +1164,7 @@ processDirectives = function(options, macros, lines, ...)
 	 processDirectives(options, macros, eliminateComments,
 			   yieldFromArray, knownIncludeQuirks[tok], n)
       else
-	 -- include file not found but with known quirks
+	 -- include file not found
 	 xwarning(options, n, "include directive (%s) was unresolved", tok)
       end
    end
