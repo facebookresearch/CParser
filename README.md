@@ -445,6 +445,88 @@ Example
 
 ##### `cparser.typeToString(ty,nam)`
 
+This function produces a string suitable for
+declaring a variable `nam` with type `ty` in a C program.
+
+Argument `ty` is a type data structure.
+Argument `nam` should be a string representing a legal identifier.
+However it defaults to `%s` in order to compute a format string
+suitable for the standard Lua function `string.format`.
+
+Module `cparser` represents each type with a tree whose nodes are Lua
+tables tagged by their `tag` field.  These tables are equipped with a
+convenient metatable method that prints them compactly by first
+displaying the tag then the remaining fields using the standard Lua
+construct.
+
+For instance, the type `const int` is printed as
+```Lua
+      Qualified{t=Type{n="int"},const=true}
+```
+and corresponds to
+```Lua
+      {
+        tag="Qualified",
+        const=true,
+	t= {
+	     tag="Type",
+	     n = "int"
+	   }
+      }
+```
+
+The following tags are used to represent types.
+
+* `Type{n=name}` is used to represent a type `name`.  There is only
+  one instance of each named type.  Names can be made of multiple
+  keywords, such as `int` or `unsigned long int`, they can also be
+  typedef identifiers, such as `size_t`, or composed names, such as
+  `struct foo` or `enum bar`.  This construct can also contain a field
+  `_def` that points to the definition of the named type if such a
+  definition is known.
+
+* `Qualified{t=basetype,...}` is used to represent a qualified variant
+  of `basetype`. Fields named `const`, `volatile`, or `restrict` are
+  set to true to represent the applicable type qualifiers.
+
+* `Pointer{t=basetype}` is used to represent a pointer to an object of
+  type `basetype`. This construct may also contains a field
+  `block=true` to indicate that the pointer refers to a code block (a
+  C extension found in Apple compilers.)
+
+* `Array{t=basetype,size=s}` is used to represent an array of object
+  of type `basetype`. The optional field `size` contains the array
+  size when an array size is specified. The size is usually an
+  integer.  However there are situations in which the parser is unable
+  to evaluate the size, for instance because it relies on the C
+  keyword `sizeof(x)`.  In such cases, field `size` is a string
+  containing a C expression for the size.
+
+* `Struct{}` and `Union{}` are used to represent the corresponding C
+  types. The optional field `n` contains the structure tag. Each entry
+  is represented by a `Pair{type,name}` construct located at
+  successive integer indices. This means that the type of the third entry
+  of structure type `ty` can be accessed as `ty[3][1]` and the
+  corresponding name is `ty[3][2]`.  In the case of `Struct{}` tables,
+  the pairs optionally contain a field `bitfield` to indicate a
+  bitfield size for the structure entry.  Field `bitfield` usually
+  contains a small integer but can also contain a string representing
+  a C expression (just like field `size` in the `Array{}` construct.)
+  
+* `Enum{}` is used to represent an enumerated type. The optional
+  field `n` may contain the enumeration tag name. The enumeration
+  constants are reprsented as `Pair{name,value}` located at
+  successive integer indices. The second pair element is only
+  given when the C code contains an explicit value. It can be an
+  integer or an expression strint (just like field `size` in `Array{}`).
+
+* `Function{t=returntype}` is used to represent functions
+  returning an object of type `returntype`. Field `withoutProto`
+  is set to `true` when the function does not provide a prototype.
+  Otherwise the arguments are described by `Pair{type,name}` located
+  as integer indices. The prototype of variadic functions end
+  with a `Pair{ellipsis=true}` to represent the `...` argument.
+  Functions can also contain fields TO_BE_CONTINUED
 
 
 
