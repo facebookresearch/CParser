@@ -529,9 +529,7 @@ tables may additionally have a field `attr` whose contents represents
 attribute information, such as C11 attributes `[[...]]`, MSVC-style
 attributes `__declspec(...)` or GNU attributes `__attribute__(...)`.
 This is representing by an array containing all the attribute tokens
-(on odd indices) and their locations (on even indices).  Function
-`typeToString` does not currently print these attributes.
-
+(on odd indices) and their locations (on even indices).
 
 
 ##### `cparser.declToString(decl)`

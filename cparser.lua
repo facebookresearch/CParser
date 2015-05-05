@@ -90,10 +90,6 @@ local function newTag(tag)
 	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
 	 elseif type(k) ~= 'string' then
 	    s.extra = true
- elseif k == 'attr' and type(v)=='table' then
- local z=''
- for i=1,#v,2 do z = z..v[i] end
- s[1+#s]=string.format("%s=%q",k,z)
 	 elseif k:find("^_") and type(v)=='table' then
 	    s[1+#s] = string.format("%s={..}",k) -- hidden
 	 elseif k ~= 'tag' then
@@ -1698,6 +1694,18 @@ local function compareTypes(t1, t2, oki)
    return false
 end
 
+-- Util
+
+local function spaceNeededBetweenTokens(t1,t2)
+   if not t1 or not t2 then return false end
+   local it1 = isIdentifier(t1) or isNumber(t1)
+   local it2 = isIdentifier(t2) or isNumber(t2)
+   if it1 and it2 then return true end
+   if it1 and not it2 or not it1 and it2 then return false end
+   local z = callAndCollect({silent=true},tokenizeLine,t1..t2,"internal",true)
+   return z[1]~=t1 or z[2]~=t2
+end
+
 -- Constructs a string suitable for declaring a variable <nam> of type
 -- <ty> in a C program. Argument <nam> defaults to "%s".
 
@@ -1729,12 +1737,22 @@ local function typeToString(ty, nam)
       end
       return s
    end
+   local function initstr(arr)
+      local s = {}
+      for i=1,#arr,2 do
+	 if spaceNeededBetweenTokens(arr[i-2],arr[i]) then s[1+#s] = ' ' end
+	 s[1+#s] = arr[i]
+      end
+      return table.concat(s)
+   end
+      
    -- main loop
    while true do
       if ty.tag == 'Type' then
 	 return insertword(ty.n, nam)
       elseif ty.tag == 'Qualified' then
  	 if ty.t and ty.t.tag == 'Type' then nam = insertword(ty.t.n, nam) end
+	 if ty.attr then nam = insertword(initstr(ty.attr),nam) end
 	 if ty.restrict then nam = insertword("restrict",nam) end
 	 if ty.volatile then nam = insertword("volatile",nam) end      
 	 if ty.const then nam= insertword("const",nam) end
@@ -1754,10 +1772,11 @@ local function typeToString(ty, nam)
 	 if #ty == 0 and ty.withoutProto then nam = nam .. '()'
 	 elseif #ty == 0 then nam = nam .. '(void)'
 	 else nam = nam .. '(' .. makelist(ty,',') .. ')' end
-	 if ty.const then nam = nam .. 'const' end
+	 if ty.attr then nam = nam .. initstr(ty.attr) end
 	 ty = ty.t
       elseif ty.tag == 'Enum' then
 	 local s = 'enum'
+	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
 	 if ty.n then s = s .. ' ' .. ty.n end
 	 s = s .. '{'
 	 for i=1,#ty do
@@ -1770,6 +1789,7 @@ local function typeToString(ty, nam)
 	 return s .. '}' .. nam
       else
 	 local s = string.lower(ty.tag)
+	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
 	 if ty.n then s = s .. ' ' .. ty.n end
 	 return s .. '{' .. makelist(ty,';') .. '}' .. nam
       end
@@ -1870,6 +1890,7 @@ local function lookaheadTokenIterator(ti)
    end
 end
 
+
 -- Evaluation of constant expression.
 --   We avoid writing a complete expression parser by reusing the cpp
 -- expression parser and either returning an integer (when we can
@@ -1902,18 +1923,9 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
    if s and type(r)=='number' and not ti(0) then return r,true end
    if s and type(r)~='number' and not ti(0) then return nil,false end
    -- just return an expression string
-   local function spacebetween(t1,t2)
-      if not t1 or not t2 then return false end
-      local it1 = isIdentifier(t1) or isNumber(t1)
-      local it2 = isIdentifier(t2) or isNumber(t2)
-      if it1 and it2 then return true end
-      if it1 and not it2 or not it1 and it2 then return false end
-      local z = callAndCollect(options,tokenizeLine,t1..t2,n,true)
-      return z[1]~=t1 or z[2]~=t2
-   end
    local s = {}
    for i=1,#arr,2 do
-      if spacebetween(arr[i-2],arr[i]) then
+      if spaceNeededBetweenTokens(arr[i-2],arr[i]) then
 	 s[1+#s] = ' '
       end
       if isName(arr[i]) and symtable[arr[i]] and symtable[arr[i]].eval then
@@ -2222,11 +2234,9 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 end
       end
       if nn.type == 'char' then
-	 nn.integral = true
 	 if nn.sign then
 	    nn.type=nn.sign..' '..nn.type nn.sign=nil end
       elseif nn.type == 'int' then
-	 nn.integral = true
 	 if nn.size then
 	    nn.type=nn.size..' '..nn.type nn.size=nil end
 	 if nn.sign then
@@ -2475,7 +2485,6 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 else
 	    while true do
 	       if tok == ':' then ti() -- unnamed bitfield
-		  xassert(lextra.integral, options, where, "bitfields must be of integral types")
 		  local size = skipTo({},',',';')
 		  local v = tryEvaluateConstantExpression(options, where, size, symtable)
 		  xassert(v, options, where,
@@ -2491,8 +2500,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 		     xerror(options, where, "member functions are not allowed in C")
 		  end
 		  if tok == ':' then ti()
-		     xassert(lty == pty and lextra.integral, options, where, 
-                             "bitfields must be of integral types")
+		     xassert(lty == pty, options, where, "bitfields must be of integral types")
 		     local size = skipTo({},',',';')
 		     local v = tryEvaluateConstantExpression(options,where,size,symtable)
 		     xassert(v, options, where,
@@ -2512,7 +2520,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if tok == ';' then ti() end
       end
       check("}") ti()
-      nn.attr = collectAttributes(nn.attr)
+      ty.attr = collectAttributes(nn.attr)
+      nn.attr = nil
       -- change tagged type as newtype
       if ttag then
 	 nn.newtype = true
@@ -2563,7 +2572,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if tok == ',' then ti() else check(',','}') end
       until tok == nil or tok == '}' 
       check('}') ti()
-      nn.attr = collectAttributes(nn.attr)
+      ty.attr = collectAttributes(nn.attr)
+      nn.attr = nil
       -- change tagged type as newtype
       nn.newtype = true
       if ttag then
