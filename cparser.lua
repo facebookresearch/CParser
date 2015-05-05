@@ -277,7 +277,7 @@ end
 -- Collect coroutine outputs into an array
 -- The options and the extra arguments are passed to the coroutine.
 
-local function callAndCollect(options, f, ...)
+local function callAndCollect(options, f, ...) -- Bell Labs nostalgia
    local collect = {}
    for s in wrap(options, f, ...) do
       collect[1+#collect] = s
