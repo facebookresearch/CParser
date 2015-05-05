@@ -1,7 +1,5 @@
 # CParser
 
-(c) 2015 Léon Bottou -- Facebook AI Research
-
 This pure Lua module implements (1) a standard compliant C
 preprocessor with a couple useful extensions, and (2) a parser that
 provides a Lua friendly description of all declarations and

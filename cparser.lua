@@ -1,5 +1,13 @@
--- Parse C declarations in Lua
--- (C) 2015 Leon Bottou, Facebook
+
+-- Lua module to preprocess and parse C declarations.
+--
+-- Copyright (c) 2015-present, Facebook, Inc.
+-- All rights reserved.
+--
+-- This source code is licensed under the BSD-style license found in
+-- the LICENSE file in the root directory of this source tree. An
+-- additional grant of patent rights can be found in the PATENTS file
+-- in the same directory.
 
 
 -- standard libs
@@ -8,13 +16,11 @@ local coroutine = require 'coroutine'
 local table = require 'table'
 local io = require 'io'
 
--- 5.1 to 5.3 compatibility
+-- Lua 5.1 to 5.3 compatibility
 local unpack = unpack or table.unpack
 
 -- strict is not always welcome
--- to be commented out in the future?
-pcall(require,'strict')
-
+-- pcall(require,'strict')
 
 
 ---------------------------------------------------
