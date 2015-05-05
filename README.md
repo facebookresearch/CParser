@@ -477,8 +477,8 @@ and corresponds to
 
 The following tags are used to represent types.
 
-* `Type{n=name}` is used to represent a type `name`.  There is only
-  one instance of each named type.  Names can be made of multiple
+* `Type{n=name}` is used to represent a named type `name`.  There is
+  only one instance of each named type.  Names can be made of multiple
   keywords, such as `int` or `unsigned long int`, they can also be
   typedef identifiers, such as `size_t`, or composed names, such as
   `struct foo` or `enum bar`.  This construct can also contain a field
@@ -520,17 +520,69 @@ The following tags are used to represent types.
   given when the C code contains an explicit value. It can be an
   integer or an expression strint (just like field `size` in `Array{}`).
 
-* `Function{t=returntype}` is used to represent functions
-  returning an object of type `returntype`. Field `withoutProto`
-  is set to `true` when the function does not provide a prototype.
-  Otherwise the arguments are described by `Pair{type,name}` located
-  as integer indices. The prototype of variadic functions end
-  with a `Pair{ellipsis=true}` to represent the `...` argument.
-  Functions can also contain fields TO_BE_CONTINUED
-
+* `Function{t=returntype}` is used to represent functions returning an
+  object of type `returntype`. Field `withoutProto` is set to `true`
+  when the function does not provide a prototype.  Otherwise the
+  arguments are described by `Pair{type,name}` located as integer
+  indices. The prototype of variadic functions end with a
+  `Pair{ellipsis=true}` to represent the `...` argument.  Function
+  nodes can also contain fields `inline`, `const`, and `volatile` to
+  represent the corresponding properties. The array `attr` contains
+  token strings (at odd indices) and location strings (at even
+  indices) representing the concatenated function attributes declared
+  using the MSVC `__declspec(...)` or the GCC `__asm__()` and
+  `__attribute__((...))  extensions. This array contains alternating
+  token strings and location strings.
 
 
 ##### `cparser.declToString(decl)`
 
+This function produces a string that describes
+the data structures returned by the declaration iterator.
+There are in fact three kinds of data structures.
+All these structures have very similar fields.
+In particular, field `where` always contains the location
+of the definition or declaration.
 
+* `TypeDef{name=n,sclass=s,type=ty}` represents a type definition.
+  This construct is produced in two different situations.  When the C
+  program contains a `typedef` keyword, field `sclass` contains the
+  string `"typedef"`, field `name` contains the new type name, and
+  field `type` contains the type description.  When the C program
+  defines a tagged `struct`, `union`, or `enum` type, field `sclass`
+  contains the string `"[typetag]"`, field `name` contains the tagged
+  type name (e.g, `"struct foo"`), and field `type` contains the type
+  definition (e.g., `Struct{...}`).
 
+* `Declaration{name=n,sclass=s,type=ty,...}` represents the declaration
+  of a variable or function that is defined elsewhere. Field `name`
+  gives the variable or function name. Field `type` gives its type.
+  Field `sclass` can be empty, `"extern"`, or `"static"`.
+
+* `Definition{name=n,sclass=s,type=ty...}` represents the definition
+   of a constant, a variable, or a function. Field `name` again gives
+   the name, field `type` gives its type, and field <sclass> the
+   storage class. In addition, field `init` optionally contains an
+   array of tokens and token locations representing the constant
+   value, the variable initialization or the function body, and a
+   field `intval` containing the value of a constant integer.  Field
+   `intval` works like the field `size` of the `Array{}` construct: it
+   often contains a small integer but sometimes contains a string
+   representing the C expression that the parser was unable to
+   evaluate for one reason or another.
+
+   There are two special uses of the `Definition{}` construct.
+
+   * When field `sclass` is the string `"[enum]"`, this construct
+     represents the definition of an enumeration constant. The `type`
+     field is then `Qualified{t=Type{n="int"},const=true}` with an
+     additional field `_enum` that points to the definition of the
+     enumerated type.
+   * When field `sclass` is the string `"[cpp]"`, this construct
+     represents the definition of a preprocessor symbol with
+     an integer value. This can be useful because many
+     libraries define their constants using the preprocessor
+     rather than using enum types. This is also limited
+     because the parser does not report when a preprocessor
+     symbol is undefined. One must inspect the macro
+     definition table to do this correctly.

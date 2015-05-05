@@ -11,7 +11,8 @@ local io = require 'io'
 -- 5.1 to 5.3 compatibility
 local unpack = unpack or table.unpack
 
--- strict is always welcome
+-- strict is not always welcome
+-- to be commented out in the future?
 pcall(require,'strict')
 
 
@@ -107,7 +108,7 @@ local function newTag(tag)
    end
 end
 
-Node = newTag(nil) -- hack to print any table: print(Node(nn))
+local Node = newTag(nil) -- hack to print any table: print(Node(nn))
 
 
 ---------------------------------------------------
@@ -1559,7 +1560,7 @@ end
 -- as tuple[1],tuple[2] etc.  Although this is named Pair, one can use
 -- more than two args.
 
-Pair = newTag('Pair')
+local Pair = newTag('Pair')
 
 -- Types are represented by a series of tagged data structures.
 -- Subfield <t> usually contains the base type or the function return
@@ -1582,14 +1583,14 @@ Pair = newTag('Pair')
 --   int foo(void)               Function{t=Type{n="int"}}
 --   int foo()                   Function{t=Type{n="int"},withoutProto=true}
 
-Type = newTag('Type')
-Qualified = newTag('Qualified')
-Pointer = newTag('Pointer')
-Array = newTag('Array')
-Enum = newTag('Enum')
-Struct = newTag('Struct')
-Union = newTag('Union')
-Function = newTag('Function')
+local Type = newTag('Type')
+local Qualified = newTag('Qualified')
+local Pointer = newTag('Pointer')
+local Array = newTag('Array')
+local Enum = newTag('Enum')
+local Struct = newTag('Struct')
+local Union = newTag('Union')
+local Function = newTag('Function')
 
 -- This function creates a qualified variant of a type.
 
@@ -1760,9 +1761,9 @@ end
 -- when the type definition results from a tagged structure union or
 -- enum.
 
-TypeDef = newTag('TypeDef')
-Definition = newTag('Definition')
-Declaration = newTag('Declaration')
+local TypeDef = newTag('TypeDef')
+local Definition = newTag('Definition')
+local Declaration = newTag('Declaration')
 
 local function declToString(action)
    local n = (action.sclass == '[typetag]') and "" or action.name
