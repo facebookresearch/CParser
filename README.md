@@ -343,9 +343,9 @@ to return lines from the file descriptor `filedesc`. You can also use
 `string.gmatch(somestring,'[^\n]+')` to return lines from string
 `somestring`.
 
-Successive calls of the token iterator function describe the tokens of
-the preprocessed code. Each call returns two strings.  The first
-string represent the token text. The second string follows format
+Each successive call of the token iterator function describes a token
+of the preprocessed code by returning two strings.  The first string
+represent the token text. The second string follows format
 `"filename:lineno"` and indicates on which line the token was
 found. The filename either is the argument `prefix` or is the actual
 name of an included file. When all the tokens have been produced, the
@@ -385,13 +385,12 @@ magic symbols such as `__FILE__` or `__LINE__`.
 
 Program `lcdecl` is implemented by function `cparser.parse`.
 
-Calling this function preprocesses and parses file `filename` and
-writes a trace into the specified file. The optional argument
-`outputfile` can be a file name or a Lua file descriptor.  When this
-argument is `nil`, the preprocessed code is written to the standard
-output.  The optional argument `options` is an array of option
-strings.  All the options documented with program `lcdecl` are
-supported.
+Calling this function preprocesses and parses file `filename`, writing
+a trace into the specified file. The optional argument `outputfile`
+can be a file name or a Lua file descriptor.  When this argument is
+`nil`, the preprocessed code is written to the standard output.  The
+optional argument `options` is an array of option strings.  All the
+options documented with program `lcdecl` are supported.
 
 
 ##### `cparser.declarationIterator(options, lines, prefix)`
@@ -410,8 +409,8 @@ to return lines from the file descriptor `filedesc`. You can also use
 `string.gmatch(somestring,'[^\n]+')` to return lines from string
 `somestring`.
 
-Successive calls of the declaration iterator function returns a Lua
-data structure that represents declarations, definitions, and certain
+Each successive call of the declaration iterator function returns a Lua
+data structure that represents a declarations, a definition, or certain
 preprocessor events.  The format of these data structures is described
 under function `cparser.declToString`.
 
@@ -423,8 +422,8 @@ represented by `Definition{}` or `Declaration{}` data structures
 similar to those returned by the declaration iterator.
 
 The macro definition table contains
-the definition of the preprocessor macro.
-See the preprocessor documentation for details.
+the definition of the preprocessor macros.
+See the documentation of function `macroToString` for details.
 
 Example
 
