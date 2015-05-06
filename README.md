@@ -564,9 +564,9 @@ definition or declaration.
   corresponding enumerated type.
 
 * `CppEvent{directive=dir,...}` describes certain preprocessor events
-  that are potentially relevant to a C API.  In particular, the
-  definition of an object-like macro with an integer value is reported
-  as `CppEvent{directive="define",name="symbol",intval=value}` and
-  its deletion as `CppEvent{directive="undef",name="symbol"}`.
-  Finally, `CppEvent{directive="include",name="filespec"}` indicates
-  that an include directive was not resolved.
+  that are potentially relevant to a C API. In particular, the
+  definition of an object-like macro `s` with an integer value `v` is
+  reported as `CppEvent{directive="define",name="s",intval=v}` and its
+  deletion as `CppEvent{directive="undef",name="s"}`.  Finally,
+  `CppEvent{directive="include",name="fspec"}` indicates that an
+  include directive was not resolved.
