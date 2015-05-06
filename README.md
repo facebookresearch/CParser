@@ -482,7 +482,8 @@ The following tags are used to represent types.
 * `Pointer{t=basetype}` is used to represent a pointer to an object of
   type `basetype`. This construct may also contains a field
   `block=true` to indicate that the pointer refers to a code block (a
-  C extension found in Apple compilers.)
+  C extension found in Apple compilers) or a field `ref=true` to
+  indicate a reference type (a C extension inspired by C++.)
 
 * `Array{t=basetype,size=s}` is used to represent an array of object
   of type `basetype`. The optional field `size` contains the array
@@ -523,6 +524,22 @@ attribute information, such as C11 attributes `[[...]]`, MSVC-style
 attributes `__declspec(...)` or GNU attributes `__attribute__(...)`.
 This is representing by an array containing all the attribute tokens
 (on odd indices) and their locations (on even indices).
+
+
+##### `cparser.stringToType(s)`
+
+Parses string `s` as an abstract type name or a variable declaration
+and returns the type object and possibly the variable name.  This
+function returns `nil` when the string cannot be interpreted as a type
+or a declaration, or when the declaration specifies a storage class.
+
+Example
+
+```Lua
+      > return cparser.stringToType("int(*)(const char*)")
+      Pointer{t=Function{Pair{Pointer{t=Qualified{const=true,t=Type{n="char"}}}},t=Type{n="int"}}}	nil
+```      
+
 
 
 ##### `cparser.declToString(decl)`

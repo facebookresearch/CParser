@@ -1676,6 +1676,10 @@ local function compareTypes(t1, t2, oki)
       end
    elseif t1.tag ~= t2.tag then
       return false
+   elseif t1.tag == 'Pointer' then
+      if t1.block ~= t2.block then return false end
+      if t1.ref ~= t2.ref then return false end
+      return compareTypes(t1.t, t2.t, oki)
    elseif t1.tag == 'Array' then
       if compareTypes(t1.t, t2.t, oki) then
 	 if t1.size == t2.size then return true end
@@ -1788,7 +1792,7 @@ local function typeToString(ty, nam)
 	 if ty.t and ty.t.tag == 'Type' then ty = nil else ty = ty.t end
 	 if not ty then return nam end
       elseif ty.tag == 'Pointer' then
-	 local star = ty.block and '^' or '*'
+	 local star = (ty.block and '^') or (ty.ref and '&') or '*'
 	 nam = star .. insertqual(ty, nam)
 	 ty = ty.t
       elseif ty.tag == 'Array' then
@@ -2334,11 +2338,9 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
 	    name = tok
 	    ti()
-	 elseif tok == '*' or tok == '^' then --pointer
-	    local block
-	    if tok == '^' then
-               block = true -- code blocks (apple)
-	    end
+	 elseif tok == '*' or tok == '^' or tok == '&' then --pointer
+	    local block = tok == '^' or nil -- code blocks (apple)
+	    local ref = tok == '&' or nil   -- reference type
 	    ti()
 	    local nt, pt
 	    while tok=='const' or tok=='volatile'
@@ -2353,7 +2355,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    end
 	    pt = parseRev()
 	    if nt then nt.t = pt; pt = nt; end
-	    ty = Pointer{t=pt, block=block}
+	    ty = Pointer{t=pt, block=block, ref=ref}
 	 elseif tok == '(' then
 	    ti()
 	    local p = specifierTable[tok] or isTypeName(tok) or isAttribute(tok) or tok == ')'
@@ -2636,15 +2638,41 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 macros[1] = {}
       end
    end
-   
-   -- main loop
-   while tok do
-      while tok == ';' do ti() end
-      processMacroCaptures()
-      parseDeclaration(globals,"global")
-      processMacroCaptures()
+
+   -- main
+   if options.stringToType then
+      -- this is used to implement stringToType
+      local lty, lextra = parseDeclarationSpecifiers(globals, 'stringToType', true)
+      local pname, pty, psclass = parseDeclarator(lty, lextra, globals, 'stringToType', true)
+      while tok==';' do ti() end
+      xassert(not psclass, options, n, "storage class '%s' is not adequate in this context", psclass)
+      xassert(not tok, options, n, "garbage after type declaration")
+      return pty, pname
+   else
+      -- main loop
+      while tok do
+	 while tok == ';' do ti() end
+	 processMacroCaptures()
+	 parseDeclaration(globals,"global")
+	 processMacroCaptures()
+      end
+      return globals
    end
-   return globals
+end
+
+
+
+
+-- converts a string into a type and possibly a variable name
+
+local function stringToType(s)
+   local options = { silent=true, stringToType=true }
+   local src = "<" .. s .. ">"
+   local r,t,n = pcall(parseDeclarations, options, {},
+		       filterSpaces, tokenizeLine, s, src, true)
+   if not r then return nil end
+   while t and t._def do t = t._def end
+   return t, n
 end
 
 
@@ -2739,6 +2767,7 @@ cparser.macroToString = macroToString
 cparser.parse = parse
 cparser.declarationIterator = declarationIterator
 cparser.typeToString = typeToString
+cparser.stringToType = stringToType
 cparser.declToString = declToString
 
 return cparser
