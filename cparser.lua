@@ -1864,6 +1864,15 @@ local function declToString(action)
 	 s = s .. "=.."
       end
       return s
+   elseif tag == 'CppEvent' then
+      if action.directive == 'include' then
+	 s = string.format("#include %s", action.name)
+      elseif action.directive == 'define' then
+	 s = string.format("#define %s %s", action.name, action.value)
+      elseif action.directive == 'undef' then
+	 s = string.format("#undef %s", action.name)
+      end
+      return s
    end
 end
 
