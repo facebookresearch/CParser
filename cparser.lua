@@ -1873,7 +1873,7 @@ local function declToString(action)
       if action.directive == 'include' then
 	 s = string.format("#include %s", action.name)
       elseif action.directive == 'define' then
-	 s = string.format("#define %s %s", action.name, action.value)
+	 s = string.format("#define %s %s", action.name, action.intval)
       elseif action.directive == 'undef' then
 	 s = string.format("#undef %s", action.name)
       end
