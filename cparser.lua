@@ -2198,7 +2198,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       _Imaginary    = not options.dialectAnsi and 'complex',
       _Atomic       = not options.dialectAnsi and 'atomic',
       __inline      = not options.dialectAnsi and 'inline',
-      inline        = options.dialectGnu or options.dialect11 and 'inline',
+      inline        = (options.dialectGnu or options.dialect11) and 'inline',
       asm           = options.dialectGnu and "attr",
       _Pragma       = not options.dialectAnsi and "attr",
       _Alignas      = options.dialect11 and "attr",
