@@ -1,5 +1,6 @@
 
 -- Lua module to preprocess and parse C declarations.
+-- (Leon Bottou, 2015)
 --
 -- Copyright (c) 2015-present, Facebook, Inc.
 -- All rights reserved.
