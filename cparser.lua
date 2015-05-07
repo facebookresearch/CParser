@@ -2303,7 +2303,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       xassert(not nn.sign, options, n, msg, nn.sign, nn.type)
       xassert(not nn.size, options, n, msg, nn.size, nn.type)
       xassert(not nn.complex, options, n, msg, nn.complex, nn.type)
-      xassert(not nn.atomic, options, n, msg, nn.complex, nn.type)
+      xassert(not nn.atomic, options, n, msg, nn.atomic, nn.type)
       -- signal meaningless register storage classes
       local sclass = nn.sclass
       local msg = "storage class '%s' is not appropriate in this context"
