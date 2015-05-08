@@ -151,7 +151,9 @@ local function copyOptions(options)
    options = options or {}
    assert(type(options)=='table')
    local noptions = {}
-   for k,v in pairs(options) do noptions[k]=v end
+   for k,v in ipairs(options) do noptions[k]=v end
+   noptions.sizeof = options.sizeof     -- not used yet
+   noptions.alignof = options.alignof   -- not used yet
    return noptions
 end
 
@@ -2747,7 +2749,7 @@ local function parse(filename, outputfile, options)
    outputfile:write("+--------------------------\n")
    for action in li do
       local s = declToString(action)
-      outputfile:write(string.format("| %s\n", action))
+      outputfile:write(string.format("| %s\n", tostring(action)))
       if s then outputfile:write(string.format("| %s\n", s)) end
       outputfile:write("+--------------------------\n")
    end
