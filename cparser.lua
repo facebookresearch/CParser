@@ -20,9 +20,9 @@ local io = require 'io'
 -- Lua 5.1 to 5.3 compatibility
 local unpack = unpack or table.unpack
 
--- strict is not always welcome
--- pcall(require,'strict')
-
+-- Debugging
+local DEBUG = true
+if DEBUG then pcall(require,'strict') end
 
 ---------------------------------------------------
 ---------------------------------------------------
@@ -126,37 +126,53 @@ local Node = newTag(nil) -- hack to print any table: print(Node(nn))
 
 -- Many functions below have an optional argument 'options' which is
 -- simply an array of compiler-like options that are specified in the
--- toplevel call and passed to nearly all functions. This function
--- provides tests whether a particular option has been given.
-
-local function hasOption(options, opt, rehash)
-   if not options then
-      return false
-   elseif rehash or not options.hash then
-      options.hash = {}
-      for i,v in ipairs(options) do
-	 options.hash[v] = i
-      end
-   end
-   return options.hash[opt]
-end
-
--- The above function adds a field 'hash' into the options array.
--- Over time, more and more such additions proved useful.
--- The following function is called at the beginning of
--- the user facing functions to make a copy of the
--- user provided option array and avoid messing it up.
+-- toplevel call and passed to nearly all functions. Because it
+-- provides a good communication channel across the code components,
+-- many named fields are also used for multiple purposes. The
+-- following function is called at the beginning of the user facing
+-- functions to make a copy of the user provided option array and
+-- setup some of these fields.
 
 local function copyOptions(options)
    options = options or {}
    assert(type(options)=='table')
    local noptions = {}
+   -- copy options
    for k,v in ipairs(options) do noptions[k]=v end
+   -- copy user modifiable named fields
    noptions.sizeof = options.sizeof     -- not used yet
    noptions.alignof = options.alignof   -- not used yet
+   -- create reversed hash
+   noptions.hash = {}
+   for i,v in ipairs(options) do
+      noptions.hash[v] = i
+   end
+   -- compute dialect flags
+   dialect = 'gnu99'
+   for i,v in ipairs(options) do
+      if v:find("^%-std=%s*[^%s]") then
+	 dialect = v:match("^%-std=%s*(.-)%s*$")
+      end
+   end
+   noptions.dialect = dialect
+   noptions.dialectGnu = dialect:find("^gnu")
+   noptions.dialect99 = dialect:find("9[9x]$")
+   noptions.dialect11 = dialect:find("1[1x]$")
+   noptions.dialectAnsi = not noptions.dialectGnu
+   noptions.dialectAnsi = noptions.dialectAnsi and not noptions.dialect99
+   noptions.dialectAnsi = noptions.dialectAnsi and not noptions.dialect11
+   -- return
    return noptions
 end
 
+
+-- This function tests whether a particular option has been given.
+
+local function hasOption(options, opt)
+   assert(options)
+   assert(options.silent or options.hash)
+   return options.hash and options.hash[opt]
+end
 
 
 -- Generic functions for error messages
@@ -200,6 +216,7 @@ local function max(a,b)
    return a > b and a or b
 end
 
+
 -- Deep table comparison
 -- (not very efficient, no loop detection)
 
@@ -219,6 +236,7 @@ local function tableCompare(a,b)
    end
 end
 
+
 -- Concatenate two possibly null arrays
 
 local function tableAppend(a1, a2)
@@ -235,9 +253,6 @@ local function tableAppend(a1, a2)
 end
 
 
-
-
-
 -- Evaluate a lua expression, return nil on error.
 
 local function evalLuaExpression(s)
@@ -247,6 +262,7 @@ local function evalLuaExpression(s)
       if status then return ... end end
    return r(pcall(f or error))
 end
+
 
 -- Bitwise manipulations
 -- try lua53 operators otherwise revert to iterative version
@@ -282,6 +298,7 @@ end
 -- This code uses many coroutines that yield lines or tokens.
 -- All functions that can yield take an options table as first argument.
 
+
 -- Wrap a coroutine f into an iterator
 -- The options and all the extra arguments are passed
 -- to the coroutine when it starts
@@ -301,6 +318,7 @@ local function wrap(options, f, ...)
    end
 end
 
+
 -- Collect coroutine outputs into an array
 -- The options and the extra arguments are passed to the coroutine.
 
@@ -312,6 +330,7 @@ local function callAndCollect(options, f, ...) -- Bell Labs nostalgia
    return collect
 end
 
+
 -- Yields all outputs from iterator iter.
 -- This function unpacks table values and yields the result.
 -- For all other values, this function yields the value plut its extra arguments.
@@ -321,6 +340,7 @@ local function yieldFromIterator(options, iter)
    local function yes(v,...) coroutine.yield(v,...) return v end
    while yes(iter()) do end
 end
+
 
 -- Yields all values from array <arr>.
 -- This function unpacks table values and yields the result.
@@ -354,7 +374,6 @@ end
 -- Argument options is ignored.
 -- Lua provides good line iterators such as:
 --   io.lines(filename) filedesc:lines()  str:gmatch("[^\n]+")
-
 
 local function yieldLines(options,lineIterator,prefix)
    prefix = prefix or ""
@@ -456,10 +475,12 @@ local keywordTable = {
    "double", "else", "enum", "extern", "float", "for", "goto", "if", "int",
    "long", "register", "return", "short", "signed", "sizeof", "static", "struct",
    "switch", "typedef", "union", "unsigned", "void", "volatile", "while",
-   ------ All keywords starting with underline
-   "__declspec", "__attribute__", "__asm__",
-   "_Complex", "__inline__", "__restrict__",
-   ------ Nonstandard or dialect specific keywords do not belong here.
+   ------ Keywords starting with underline
+   "__declspec", "__attribute__", "__asm__", "__inline__", "__restrict__",
+   "_Complex", "_Imaginary", "_Bool", 
+   ------ Nonstandard or dialect specific keywords do not belong here
+   ------ because the main function of this table is to say which
+   ------ identifiers cannot be variable names.
 }
    
 local punctuatorTable = {
@@ -617,6 +638,7 @@ local function tokenizeLine(options, s, n, notNewline)
       end
    end
 end
+
 
 -- Obtain lines from coroutine <lines>,
 -- and yields their tokens. The coroutine is initialized with
@@ -1209,7 +1231,7 @@ processDirectives = function(options, macros, lines, ...)
 	 end
 	 -- quirks
 	 if knownIncludeQuirks[tok] then
-	    processDirectives(options, macros, eliminateComments,
+	    processDirectives(options, macros, eliminateComments, joinLines,
 			      yieldFromArray, knownIncludeQuirks[tok], n)
 	 end
 	 -- capture
@@ -1344,19 +1366,6 @@ local function initialDefines(options)
       yieldLines(options, fd:lines(), "<cppdef>")
       fd:close()
    end
-   -- dialect selection
-   options.dialect = 'gnu99'
-   for i,v in ipairs(options) do
-      if v:find("^%-std=%s*[^%s]") then
-	 options.dialect = v:match("^%-std=%s*(.-)%s*$")
-      end
-   end
-   options.dialectGnu = options.dialect:find("^gnu")
-   options.dialect99 = options.dialect:find("9[9x]$")
-   options.dialect11 = options.dialect:find("1[1x]$")
-   options.dialectAnsi = not options.dialectGnu
-   options.dialectAnsi = options.dialectAnsi and not options.dialect99
-   options.dialectAnsi = options.dialectAnsi and not options.dialect11
    -- builtin definitions
    local sb = { "#define __CPARSER__ 1" }
    local function addDef(s,v)
@@ -1642,6 +1651,7 @@ local Struct = newTag('Struct')
 local Union = newTag('Union')
 local Function = newTag('Function')
 
+
 -- This function creates a qualified variant of a type.
 
 local function addQualifier(ty, q)
@@ -1650,6 +1660,7 @@ local function addQualifier(ty, q)
    ty[q] = true
    return ty
 end
+
 
 -- This function compares two types. When optional argument <oki> is
 -- not false and types t1 or t2 are incomplete, the function returns
@@ -1730,6 +1741,7 @@ local function compareTypes(t1, t2, oki)
    return false
 end
 
+
 -- Util
 
 local function spaceNeededBetweenTokens(t1,t2)
@@ -1741,6 +1753,7 @@ local function spaceNeededBetweenTokens(t1,t2)
    local z = callAndCollect({silent=true},tokenizeLine,t1..t2,"internal",true)
    return z[1]~=t1 or z[2]~=t2
 end
+
 
 -- Constructs a string suitable for declaring a variable <nam> of type
 -- <ty> in a C program. Argument <nam> defaults to "%s".
@@ -1780,8 +1793,7 @@ local function typeToString(ty, nam)
 	 s[1+#s] = arr[i]
       end
       return table.concat(s)
-   end
-      
+   end      
    -- main loop
    while true do
       if ty.tag == 'Type' then
@@ -1989,6 +2001,54 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
 end
 
 
+-- Specifier table.
+--  This function return a table that categorize the meaning
+-- of all the type specifier keywords.
+
+local function getSpecifierTable(options)
+   options.specifierTable = options.specifierTable or {
+      typedef    = 'sclass',
+      extern     = 'sclass',
+      static     = 'sclass',   
+      auto       = 'sclass',
+      register   = 'sclass',
+      void       = 'type',
+      char       = 'type',
+      float      = 'type',
+      int        = 'type',
+      double     = 'type',
+      short      = 'size',
+      long       = 'size',
+      signed     = 'sign',
+      unsigned   = 'sign',
+      const      = 'const',
+      volatile   = 'volatile',
+      __inline__    = 'inline',
+      __asm         = 'attr',
+      __asm__       = 'attr',
+      __declspec    = 'attr',
+      __restrict__  = 'restrict',
+      __attribute__ = 'attr',
+      __extension__ = 'extension',
+      struct        = 'struct',
+      union         = 'struct',
+      enum          = 'enum',
+      _Bool         = not options.dialectAnsi and 'type',
+      __restrict    = not options.dialectAnsi and 'restrict',
+      restrict      = not options.dialectAnsi and 'restrict',
+      _Complex      = not options.dialectAnsi and 'complex',
+      _Imaginary    = not options.dialectAnsi and 'complex',
+      _Atomic       = not options.dialectAnsi and 'atomic',
+      __inline      = not options.dialectAnsi and 'inline',
+      inline        = (options.dialectGnu or options.dialect11) and 'inline',
+      asm           = options.dialectGnu and "attr",
+      _Pragma       = not options.dialectAnsi and "attr",
+      _Alignas      = options.dialect11 and "attr",
+   }
+   return options.specifierTable
+end
+
+
 -- This coroutine is the declaration parser
 -- Argument <globals> is the global symbol table.
 -- Argument <tokens> is a coroutine that yields program tokens.
@@ -2169,43 +2229,8 @@ local function parseDeclarations(options, globals, tokens, ...)
    -- and the right parts are called Declarators.
    
    -- token classification table for speeding up type parsing
-   local specifierTable = {
-      typedef    = 'sclass',
-      extern     = 'sclass',
-      static     = 'sclass',   
-      auto       = 'sclass',
-      register   = 'sclass',
-      void       = 'type',
-      char       = 'type',
-      float      = 'type',
-      int        = 'type',
-      double     = 'type',
-      short      = 'size',
-      long       = 'size',
-      signed     = 'sign',
-      unsigned   = 'sign',
-      const      = 'const',
-      volatile   = 'volatile',
-      __inline__    = 'inline',
-      __asm         = 'attr',
-      __asm__       = 'attr',
-      __declspec    = 'attr',
-      __restrict__  = 'restrict',
-      __attribute__ = 'attr',
-      __extension__ = 'extension',
-      _Bool         = not options.dialectAnsi and 'type',
-      __restrict    = not options.dialectAnsi and 'restrict',
-      restrict      = not options.dialectAnsi and 'restrict',
-      _Complex      = not options.dialectAnsi and 'complex',
-      _Imaginary    = not options.dialectAnsi and 'complex',
-      _Atomic       = not options.dialectAnsi and 'atomic',
-      __inline      = not options.dialectAnsi and 'inline',
-      inline        = (options.dialectGnu or options.dialect11) and 'inline',
-      asm           = options.dialectGnu and "attr",
-      _Pragma       = not options.dialectAnsi and "attr",
-      _Alignas      = options.dialect11 and "attr",
-   }
-   
+   local specifierTable = getSpecifierTable(options)
+
    -- appends attributes to table
    local function isAttribute()
       return specifierTable[tok]=='attr' or 
@@ -2230,15 +2255,14 @@ local function parseDeclarations(options, globals, tokens, ...)
       while true do
 	 local ltok = tok
 	 local p = specifierTable[tok]
-         if options.dialect11 and tok=='[' and ti(1)=='[' then p='attr' end
-         if p == 'attr' then
-            nn.attr = collectAttributes(nn.attr)
-         elseif p then
-            ti()
-         elseif tok == 'enum' then
+         if isAttribute() then
+	    p = 'attr'; nn.attr = collectAttributes(nn.attr)
+         elseif p == 'enum' then
 	    p = 'type'; ty = parseEnum(symtable, context, abstract, nn)
-	 elseif tok == 'struct' or tok == 'union' then
+	 elseif p == 'struct' then
 	    p = 'type'; ty = parseStruct(symtable, context, abstract, nn)
+	 elseif p then
+            ti()
          elseif isName(tok) then
 	    local tt = isTypeName(symtable, tok)
             if tt then
