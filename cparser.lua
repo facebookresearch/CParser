@@ -37,17 +37,21 @@ if DEBUG then pcall(require,'strict') end
 local knownIncludeQuirks = {}
 
 knownIncludeQuirks["<complex.h>"] = {
-   "#ifndef complex",
-   "# define complex _Complex",
-   "#endif"
+   "#ifndef complex", "# define complex _Complex", "#endif"
 }
 
 knownIncludeQuirks["<stdbool.h>"] = {
-   "#ifndef bool",
-   "# define bool _Bool",
-   "#endif"
+   "#ifndef bool", "# define bool _Bool", "#endif"
 }
 
+knownIncludeQuirks["<stdalign.h>"] = {
+   "#ifndef alignof", "# define alignof _Alignof", "#endif",
+   "#ifndef alignas", "# define alignas _Alignas", "#endif"
+}
+
+knownIncludeQuirks["<stdnoreturn.h>"] = {
+   "#ifndef noreturn", "# define noreturn _Noreturn", "#endif"
+}
 
 
 
@@ -475,9 +479,6 @@ local keywordTable = {
    "double", "else", "enum", "extern", "float", "for", "goto", "if", "int",
    "long", "register", "return", "short", "signed", "sizeof", "static", "struct",
    "switch", "typedef", "union", "unsigned", "void", "volatile", "while",
-   ------ Keywords starting with underline
-   "__declspec", "__attribute__", "__asm__", "__inline__", "__restrict__",
-   "_Complex", "_Imaginary", "_Bool", 
    ------ Nonstandard or dialect specific keywords do not belong here
    ------ because the main function of this table is to say which
    ------ identifiers cannot be variable names.
@@ -2023,6 +2024,9 @@ local function getSpecifierTable(options)
       unsigned   = 'sign',
       const      = 'const',
       volatile   = 'volatile',
+      struct        = 'struct',
+      union         = 'struct',
+      enum          = 'enum',
       __inline__    = 'inline',
       __asm         = 'attr',
       __asm__       = 'attr',
@@ -2030,9 +2034,7 @@ local function getSpecifierTable(options)
       __restrict__  = 'restrict',
       __attribute__ = 'attr',
       __extension__ = 'extension',
-      struct        = 'struct',
-      union         = 'struct',
-      enum          = 'enum',
+      __pragma      = 'attr',
       _Bool         = not options.dialectAnsi and 'type',
       __restrict    = not options.dialectAnsi and 'restrict',
       restrict      = not options.dialectAnsi and 'restrict',
@@ -2044,6 +2046,7 @@ local function getSpecifierTable(options)
       asm           = options.dialectGnu and "attr",
       _Pragma       = not options.dialectAnsi and "attr",
       _Alignas      = options.dialect11 and "attr",
+      _Noreturn     = options.dialect11 and "attr",
    }
    return options.specifierTable
 end
