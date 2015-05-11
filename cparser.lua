@@ -2277,16 +2277,16 @@ local function parseDeclarations(options, globals, tokens, ...)
             ti()
          elseif isName(tok) then
 	    local tt = isTypeName(symtable, tok)
-            if tt then
-               p = 'type'; ty = tt; ti()
-            else
+	    local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
+	    if not tt then
                local tok1 = ti(1)
-               local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
                local no = not abstract and tok1:find("^[;,[]")
-               if yes and not no then -- assuming this is a type name
+               if yes and not no then -- assume this is a type name
 		  p = 'type'; ty = namedType(globals, tok); ti()
                end
-            end
+	    elseif yes or tt.tag ~= 'Type' or tt._def then
+	       p = 'type'; ty = tt; ti() -- beware redefinition of inferred types
+	    end
 	 end
 	 if not p then
 	    break
