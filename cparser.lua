@@ -36,21 +36,25 @@ if DEBUG then pcall(require,'strict') end
 
 local knownIncludeQuirks = {}
 
-knownIncludeQuirks["<complex.h>"] = {
+knownIncludeQuirks["<complex.h>"] = { -- c99
    "#ifndef complex", "# define complex _Complex", "#endif"
 }
 
-knownIncludeQuirks["<stdbool.h>"] = {
+knownIncludeQuirks["<stdbool.h>"] = { -- c99
    "#ifndef bool", "# define bool _Bool", "#endif"
 }
 
-knownIncludeQuirks["<stdalign.h>"] = {
+knownIncludeQuirks["<stdalign.h>"] = { -- c11
    "#ifndef alignof", "# define alignof _Alignof", "#endif",
    "#ifndef alignas", "# define alignas _Alignas", "#endif"
 }
 
-knownIncludeQuirks["<stdnoreturn.h>"] = {
+knownIncludeQuirks["<stdnoreturn.h>"] = { -- c11
    "#ifndef noreturn", "# define noreturn _Noreturn", "#endif"
+}
+
+knownIncludeQuirks["<threads.h>"] = { -- c11
+   "#ifndef thread_local", "# define thread_local _Thread_local", "#endif"
 }
 
 
@@ -2027,26 +2031,33 @@ local function getSpecifierTable(options)
       struct        = 'struct',
       union         = 'struct',
       enum          = 'enum',
-      __inline__    = 'inline',
-      __asm         = 'attr',
-      __asm__       = 'attr',
-      __declspec    = 'attr',
-      __restrict__  = 'restrict',
-      __attribute__ = 'attr',
-      __extension__ = 'extension',
-      __pragma      = 'attr',
+      __inline__    = 'inline',     -- gnu
+      __asm__       = 'attr',       -- gnu
+      __restrict__  = 'restrict',   -- gnu
+      __attribute__ = 'attr',       -- gnu
+      __extension__ = 'extension',  -- gnu
+      __pragma      = 'attr',       -- msvc
+      __asm         = 'attr',       -- msvc
+      __declspec    = 'attr',       -- msvc
+      __restrict    = 'restrict',   -- msvc
+      __inline      = 'inline',     -- msvc
+      __forceinline = 'inline',     -- msvc
+      __cdecl       = 'attr',       -- msvc
+      __fastcall    = 'attr',       -- msvc
+      __stdcall     = 'attr',       -- msvc
+      __based       = 'attr',       -- msvc
       _Bool         = not options.dialectAnsi and 'type',
-      __restrict    = not options.dialectAnsi and 'restrict',
       restrict      = not options.dialectAnsi and 'restrict',
       _Complex      = not options.dialectAnsi and 'complex',
       _Imaginary    = not options.dialectAnsi and 'complex',
       _Atomic       = not options.dialectAnsi and 'atomic',
-      __inline      = not options.dialectAnsi and 'inline',
-      inline        = (options.dialectGnu or options.dialect11) and 'inline',
-      asm           = options.dialectGnu and "attr",
+      inline        = not options.dialectAnsi and 'inline',
       _Pragma       = not options.dialectAnsi and "attr",
+      __thread      = options.dialectGnu and "attr",
+      asm           = options.dialectGnu and "attr",
       _Alignas      = options.dialect11 and "attr",
       _Noreturn     = options.dialect11 and "attr",
+      _Thread_local = options.dialect11 and "attr",
    }
    return options.specifierTable
 end
@@ -2399,6 +2410,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 elseif tok ~= '[' then
 	    return ty
 	 end
+	 attr = collectAttributes(attr)
 	 while tok == '(' or tok == '[' and ti(1) ~= '[' do
 	    if tok == '(' then ti()
 	       ty = parsePrototype(ty,symtable,context,abstract)
@@ -2450,12 +2462,11 @@ local function parseDeclarations(options, globals, tokens, ...)
       attr = tableAppend(extra.attr, attr)
       if attr then
 	 local tt = ty
-	 local function canHaveAttributes(tag)
-	    return tag=='Function' or tag=='Struct' or tag=='Union'
-	       or tag=='Enum' or tag=='Qualified' 
-	 end
-	 while tt and not canHaveAttributes(tt.tag) do tt=tt.t end
-	 if tt then tt.attr = attr else ty=Qualified{attr=attr,t=ty} end
+	 while tt.tag == 'Pointer' do tt=tt.t end
+	 if tt ~= 'Function' and tt ~= 'Struct' and tt ~= 'Union' then tt = nil end
+	 if tt == nil and ty == 'Qualified' then tt = ty end
+	 if tt == nil then ty=Qualified{t=ty} tt=ty end
+	 if tt then tt.attr = attr end
       end
       -- return
       xassert(abstract or name, options, n, "an identifier was expected")
