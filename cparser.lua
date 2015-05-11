@@ -124,7 +124,8 @@ local function newTag(tag)
 end
 
 local Node = newTag(nil) -- hack to print any table: print(Node(nn))
-
+local function unused() end
+unused(Node)
 
 ---------------------------------------------------
 ---------------------------------------------------
@@ -156,8 +157,8 @@ local function copyOptions(options)
       noptions.hash[v] = i
    end
    -- compute dialect flags
-   dialect = 'gnu99'
-   for i,v in ipairs(options) do
+   local dialect = 'gnu99'
+   for _,v in ipairs(options) do
       if v:find("^%-std=%s*[^%s]") then
 	 dialect = v:match("^%-std=%s*(.-)%s*$")
       end
@@ -215,7 +216,7 @@ local function xdebug(lineno,message,...)
    print(msg)
 end
 
-   
+
 -- Nil-safe max
 
 local function max(a,b)
@@ -254,8 +255,8 @@ local function tableAppend(a1, a2)
       return a1
    else
       local a = {}
-      for i,v in ipairs(a1) do a[1+#a] = v end
-      for i,v in ipairs(a2) do a[1+#a] = v end
+      for _,v in ipairs(a1) do a[1+#a] = v end
+      for _,v in ipairs(a2) do a[1+#a] = v end
       return a
    end
 end
@@ -345,6 +346,7 @@ end
 -- Argument options is ignored.
 
 local function yieldFromIterator(options, iter)
+   unused(options)
    local function yes(v,...) coroutine.yield(v,...) return v end
    while yes(iter()) do end
 end
@@ -356,7 +358,8 @@ end
 -- Argument options is ignored.
 
 local function yieldFromArray(options, arr, ...)
-   for i,v in ipairs(arr) do
+   unused(options)
+   for _,v in ipairs(arr) do
       if type(v) == 'table' then
 	 coroutine.yield(unpack(v))
       else
@@ -384,6 +387,7 @@ end
 --   io.lines(filename) filedesc:lines()  str:gmatch("[^\n]+")
 
 local function yieldLines(options,lineIterator,prefix)
+   unused(options)
    prefix = prefix or ""
    assert(type(prefix)=='string')
    local n = 0
@@ -498,12 +502,12 @@ local punctuatorTable = {
 }
 
 local keywordHash = {}
-for i,v in ipairs(keywordTable) do
+for _,v in ipairs(keywordTable) do
    keywordHash[v] = true
 end
 
 local punctuatorHash = {}
-for i,v in ipairs(punctuatorTable) do
+for _,v in ipairs(punctuatorTable) do
    local l = v:len()
    local b = v:byte()
    punctuatorHash[v] = true
@@ -531,18 +535,9 @@ local function isKeyword(tok) -- Subtype of identifier
    return tok and keywordHash[tok] ~= nil end
 local function isName(tok) -- Subtype of identifier
    return tok and isIdentifier(tok) and not keywordHash[tok] end
-   
-local function tokenType(tok, withKeyword)
-   if isNewline(tok) then return 'newline'
-   elseif isSpace(tok) then return 'space'
-   elseif isNumber(tok) then return 'number'
-   elseif withKeyword and isKeyword(tok) then return 'keyword'
-   elseif isPunctuator(tok) then return 'punctuator'
-   elseif isIdentifier(tok) then return 'identifier'
-   elseif isString(tok) then return 'string'
-   else return nil end
-end
 
+unused(isPunctuator)
+unused(isKeyword)
 
 -- The tokenizeLine() function takes a line, splits it into tokens,
 -- and yields tokens and locations. The number tokens are the weird
@@ -638,8 +633,8 @@ local function tokenizeLine(options, s, n, notNewline)
    end
    -- loop
    if p then
-      for tok,n in token do
-	 coroutine.yield(tok, n)
+      for tok,tokn in token do
+	 coroutine.yield(tok, tokn)
       end
    end
 end
@@ -691,13 +686,13 @@ expandMacros = function(options, macros, tokens, ...)
    -- redefine ti() to ensure tok,n remain up-to-date
    local ti = function() tok,n=ti() return tok,n end
    -- create a macro table that inherits <macros> but hides <symbol>
-   local function hideMacro(macros,symbol,nargs)
+   local function hideMacro(macros,symbol)
       local nmacros = {}
       setmetatable(nmacros, {__index=macros})
       if macros[symbol] and macros[symbol].recursive then
 	 -- limit number of recursive macro invocations
 	 if not options.maxrecursion then
-	    for i,v in ipairs(options) do
+	    for _,v in ipairs(options) do
 	       if type(v)=='string' and v:find("^%-Zmaxrecursion=") then
 		  options.maxrecursion = tonumber(v:match("-Zmaxrecursion=%s*(%d+)%s*$"))
 	       end
@@ -720,7 +715,7 @@ expandMacros = function(options, macros, tokens, ...)
    local function collectArgument(ti, varargs)
       local count = 0
       local tokens = {}
-      local tok = ti()
+      ti()
       while isSpace(tok) do
 	 tok = ti()
       end
@@ -746,7 +741,7 @@ expandMacros = function(options, macros, tokens, ...)
    -- collects all macro arguments
    local function collectArguments(ti,args,ntok,nn)
       local nargs = { [0]={} }
-      for i,name in ipairs(args) do
+      for _,name in ipairs(args) do
 	 if tok == ')' and name == "__VA_ARGS__" then
 	    nargs[0][name] = { negComma=true }
 	    nargs[name] = { negComma=true }
@@ -792,7 +787,7 @@ expandMacros = function(options, macros, tokens, ...)
 	       -- concatenation
 	       local u = {}
 	       local function addToU(s)
-		  if nargs[s] then for i,v in ipairs(uargs[s]) do u[1+#u] = v end
+		  if nargs[s] then for _,v in ipairs(uargs[s]) do u[1+#u] = v end
 		  else u[1+#u]=s end
 	       end
 	       addToU(def[i])
@@ -862,7 +857,7 @@ expandMacros = function(options, macros, tokens, ...)
 	 else
 	    local lines = def.lines
 	    local nargs = collectArguments(ti,def.args,ntok,nn)
-	    local nmacros = hideMacro(macros,ntok,nargs)
+	    local nmacros = hideMacro(macros,ntok)
 	    -- a coroutine that yields the macro definition
 	    local function yieldMacroLines()
 	       local count = 0
@@ -1053,7 +1048,7 @@ processDirectives = function(options, macros, lines, ...)
    -- directives store their current token in these vars
    local dirtok, tok, spc
    -- forward declaration
-   local function processLine(okElif) end
+   local processLine
    -- the captureTable mechanism communicates certain preprocessor
    -- events to the declaration parser in order to report them
    -- to the user (the parsing does not depend on this).
@@ -1069,10 +1064,10 @@ processDirectives = function(options, macros, lines, ...)
    end
    
    -- simple directives
-   local function doIgnore(ti)
+   local function doIgnore()
       if hasOption(options, "-Zpass") then coroutine.yield(s, n) end
    end
-   local function doError(ti)
+   local function doError()
       xerror(options, n, "unexpected preprocessor directive #%s", dirtok)
    end
    local function doMessage()
@@ -1138,8 +1133,8 @@ processDirectives = function(options, macros, lines, ...)
 	 local i = 0
 	 local v = callAndCollect(options, expandMacros, macros, yieldFromArray, def, n)
 	 local function ti() i=i+1 return v[i] end
-	 local s,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
-	 if s and type(r)=='number' then
+	 local ss,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
+	 if ss and type(r)=='number' then
 	    def.captured = true
 	    addToCaptureTable{directive='define', name=nam, intval=r, where=n}
 	 end
@@ -1159,8 +1154,8 @@ processDirectives = function(options, macros, lines, ...)
    local function doMacroLines(lines, stop)
       while true do
 	 li()
-	 local s = callAndCollect(options,tokenizeLine,s,n)
-	 if #s > 0 then lines[1+#lines] = s lines[1+#lines] = n end
+	 local ss = callAndCollect(options,tokenizeLine,s,n)
+	 if #ss > 0 then lines[1+#lines] = ss ; lines[1+#lines] = n end
 	 local r = checkDirective(stop)
 	 if r == "endmacro" or r == "endif" then
 	    xassert(r==stop,options,n, "unbalanced directives (got #%s instead of #%s)",r,stop)
@@ -1181,7 +1176,7 @@ processDirectives = function(options, macros, lines, ...)
       -- collect definition
       local lines = {}
       local def = { args=args, lines=lines, recursive=(dirtok=="defrecursivemacro") }
-      local r = doMacroLines(lines,"endmacro")
+      doMacroLines(lines,"endmacro")
       lines[#lines] = nil
       lines[#lines] = nil
       if hasOption(options,"-d:directives") then
@@ -1247,7 +1242,7 @@ processDirectives = function(options, macros, lines, ...)
    end
    -- conditionals
    local function doConditionalBranch(execute)
-      local r = checkDirective("endif")
+      checkDirective("endif")
       while true do
 	 li()
 	 local r = checkDirective("endif")
@@ -1390,7 +1385,7 @@ local function initialDefines(options)
    yieldLines(options, wrap(options, yieldFromArray, sb), "<builtin>")
    -- command line definitions
    local sc = {}
-   for i,v in ipairs(options) do
+   for _,v in ipairs(options) do
       local d
       if v:find("^%-D(.*)=") then
 	 d = v:gsub("^%-D%s*(.*)%s*=%s*(.-)%s*$","#define %1 %2")
@@ -1410,19 +1405,19 @@ end
 local function initialMacros(options)
    local macros = {}
    -- magic macros
-   macros["__FILE__"] = function(ti,tok,n)
+   macros["__FILE__"] = function(_,_,n)
       local f
       if type(n) == 'string' then f=n:match("^[^:]*") end
       coroutine.yield(string.format("%q", f or "<unknown>"), n)
    end
-   macros["__LINE__"] = function(ti,tok,n)
+   macros["__LINE__"] = function(_,_,n)
       local d = n
       if type(d) == 'string' then d=tonumber(d:match("%d*$")) end
       coroutine.yield(string.format("%d", d or 0), n)
    end
    -- initial macros
    local li = wrap(options,processDirectives,macros,initialDefines)
-   for s,n in li do end
+   for _ in li do end
    -- return
    return macros
 end
@@ -1449,15 +1444,15 @@ local function macroToString(macros, name)
       else
 	 arr[1+#arr] = ' '
       end
-      for i,s in ipairs(v) do
+      for _,s in ipairs(v) do
 	 arr[1+#arr] = s
       end
       if v.lines then
 	 for i = 1, #v.lines, 2 do
-	    local v = v.lines[i]
+	    local vl = v.lines[i]
 	    arr[1+#arr] = '\n'
-	    if type(v)=='table' then v=table.concat(v) end
-	    arr[1+#arr] = v:gsub('^%s?%s?','  '):gsub('^\n','')
+	    if type(vl)=='table' then vl=table.concat(vl) end
+	    arr[1+#arr] = vl:gsub('^%s?%s?','  '):gsub('^\n','')
 	 end
 	 arr[1+#arr] = '\n'
 	 arr[1+#arr] = "#endmacro"
@@ -1472,7 +1467,7 @@ local function dumpMacros(macros, outputfile)
    outputfile = outputfile or io.output()
    assert(type(macros) == 'table')
    assert(io.type(outputfile) == 'file')
-   for k,v in pairs(macros) do
+   for k,_ in pairs(macros) do
       local s = macroToString(macros,k)
       if s then outputfile:write(string.format("%s\n", s)) end
    end
@@ -1497,7 +1492,6 @@ local function filterSpaces(options, tokens, ...)
       end
       -- output nonspaces
       if not isSpace(tok) then
-	 local typ = tokenType(tok,true)
 	 coroutine.yield(tok, n)
       end
       tok,n = ti()
@@ -1611,6 +1605,7 @@ local function cpp(filename, outputfile, options)
    if dM then
       dumpMacros(macros, outputfile)
    end
+   if closeoutputfile then outputfile:close() end
 end
 
 
@@ -1889,6 +1884,7 @@ local function declToString(action)
       end
       return s
    elseif tag == 'CppEvent' then
+      local s = nil
       if action.directive == 'include' then
 	 s = string.format("#include %s", action.name)
       elseif action.directive == 'define' then
@@ -1910,10 +1906,6 @@ local function isTypeName(symtable, name)
    local ty = symtable[name]
    if ty and ty.tag == 'Type' then return ty end
    return false
-end
-
-local function isDefined(symtable, name)
-   return symtable[name] and symtable[name].tag ~= 'Declaration'
 end
 
 local function newScope(symtable)
@@ -1972,11 +1964,11 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
    -- array initializers never are constant integers
    if arr[1] == '{' then return nil,false end
    -- try direct evaluation
-   local i = -1
+   local ari = -1
    local function ti(arg)
-      if not arg then i = i + 2 ; arg = 0 end
-      if arg < 0 and i > -1 then i = i - 2 ; arg = 1 end
-      return arr[i+2*arg],arr[i+2*arg+1]
+      if not arg then ari = ari + 2 ; arg = 0 end
+      if arg < 0 and ari > -1 then ari = ari - 2 ; arg = 1 end
+      return arr[ari+2*arg],arr[ari+2*arg+1]
    end
    local function rsym(tok)
       local s = symtable and symtable[tok]
@@ -1984,9 +1976,9 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
 	      "symbol '%s' does not resolve to a constant integer", s)
       return s.intval
    end
-   local s,r = pcall(evaluateCppExpression, {silent=true}, ti, n, rsym)
-   if s and type(r)=='number' and not ti(0) then return r,true end
-   if s and type(r)~='number' and not ti(0) then return nil,false end
+   local ss,r = pcall(evaluateCppExpression, {silent=true}, ti, n, rsym)
+   if ss and type(r)=='number' and not ti(0) then return r,true end
+   if ss and type(r)~='number' and not ti(0) then return nil,false end
    -- just return an expression string
    local s = {}
    for i=1,#arr,2 do
@@ -2102,6 +2094,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       return ty
    end
    local function Type() assert(false) end
+   unused(Type) -- should stay unused
    
    -- check that current token is one of the provided token strings
    local function check(s1,s2)
@@ -2296,7 +2289,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if p == 'size' and ltok == 'long' and nn[p] == 'long' then
 	    nn[p] = 'long long'
 	 elseif p=='attr' then
-	    -- already done
+	    unused() -- already done
          elseif p=='type' and nn[p] then
 	    xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
 	 elseif nn[p] then
@@ -2346,13 +2339,13 @@ local function parseDeclarations(options, globals, tokens, ...)
       xassert(not nn.atomic, options, n, msg, nn.atomic, nn.type)
       -- signal meaningless register storage classes
       local sclass = nn.sclass
-      local msg = "storage class '%s' is not appropriate in this context"
+      local smsg = "storage class '%s' is not appropriate in this context"
       if context == 'global' then
 	 xassert(sclass~='register' and sclass~='auto', 
-                 options, n, msg, sclass)
+                 options, n, smsg, sclass)
       elseif context == 'param' then
 	 xassert(sclass~='static' and sclass~='extern' and sclass~='typedef', 
-                 options, n, msg, sclass)
+                 options, n, smsg, sclass)
       end
       -- return
       if not ty then ty = namedType(globals, nn.type) end
@@ -2374,7 +2367,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local where = n
       local name
       local function parseRev()
-	 local ty
+	 local ty = nil
 	 if isName(tok) then
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
 	    name = tok
@@ -2516,6 +2509,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    parsePrototype = function(rty,symtable,context,abstract)
+      unused(context,abstract)
       local nsymtable = newScope(symtable)
       local ty = Function{t=rty}
       local i=0
@@ -2526,7 +2520,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    ti() check(')')
 	 else
 	    local lty, lextra = parseDeclarationSpecifiers(nsymtable, 'param', true)
-	    local pname, pty, psclass = parseDeclarator(lty, lextra, nsymtable, 'param', true)
+	    local pname, pty = parseDeclarator(lty, lextra, nsymtable, 'param', true)
 	    if pty.tag == 'Type' and pty.n == 'void' then
 	       xassert(i==0 and not pname and tok==')',options,n,
 		       "void in function parameters must appear first and alone")
@@ -2546,6 +2540,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    parseStruct = function(symtable, context, abstract, nn)
+      unused(abstract)
       check('struct', 'union')
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
@@ -2559,7 +2554,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local where = n
       check('{') ti()
       while tok and tok ~= '}' do
-	 local where = n
+	 where = n
 	 local lty, lextra = parseDeclarationSpecifiers(symtable, context)
 	 xassert(lextra.sclass == nil, options, where, 
                  "storage class '%s' is not allowed here", lextra.sclass)
@@ -2577,7 +2572,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 			  "invalid anonymous bitfield size (%s)", v)
 		  ty[1+#ty] = Pair{lty,bitfield=v}
 	       else
-		  local pname, pty, psclass = parseDeclarator(lty, lextra, symtable, context)
+		  local pname, pty = parseDeclarator(lty, lextra, symtable, context)
 		  if pty.tag == 'Array' and not pty.size then
 		     xwarning(options, where, "unsized arrays are not allowed here (ignoring)")
 		  elseif pty.tag == 'Function' then
@@ -2617,6 +2612,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    parseEnum = function(symtable, context, abstract, nn)
+      unused(abstract)
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
@@ -2675,7 +2671,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local macros = options.macros
       local captable = macros and macros[1]
       if type(captable) == 'table' then
-	 for i,v in ipairs(captable) do coroutine.yield(CppEvent(v)) end
+	 for _,v in ipairs(captable) do coroutine.yield(CppEvent(v)) end
 	 macros[1] = {}
       end
    end
@@ -2709,9 +2705,9 @@ end
 local function stringToType(s)
    local options = { silent=true, stringToType=true }
    local src = "<" .. s .. ">"
-   local r,t,n = pcall(parseDeclarations, options, {},
+   local ss,t,n = pcall(parseDeclarations, options, {},
 		       filterSpaces, tokenizeLine, s, src, true)
-   if not r then return nil end
+   if not ss then return nil end
    while t and t._def do t = t._def end
    return t, n
 end
@@ -2723,7 +2719,7 @@ end
 
 local function initialSymbols(options)
    local symbols = {}
-   for i,v in ipairs(options) do
+   for _,v in ipairs(options) do
       if v:find("^%-T") then
 	 local d = v:gsub("^%-T%s*(.-)%s*$")
 	 xassert(d and d:find("[A-Za-z_$][A-Za-z0-9_$]*"),
@@ -2790,6 +2786,9 @@ local function parse(filename, outputfile, options)
       outputfile:write(string.format("| %s\n", tostring(action)))
       if s then outputfile:write(string.format("| %s\n", s)) end
       outputfile:write("+--------------------------\n")
+   end
+   if closeoutputfile then
+      outputfile:close()
    end
 end
 
