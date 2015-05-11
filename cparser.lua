@@ -1,14 +1,14 @@
-
 -- Lua module to preprocess and parse C declarations.
 -- (Leon Bottou, 2015)
 --
 -- Copyright (c) 2015-present, Facebook, Inc.
 -- All rights reserved.
-
+--
 -- This source code is licensed under the BSD-style license found in
 -- the LICENSE file in the root directory of this source tree. An
 -- additional grant of patent rights can be found in the PATENTS file
 -- in the same directory.
+
 
 
 -- standard libs
@@ -23,6 +23,9 @@ local unpack = unpack or table.unpack
 -- Debugging
 local DEBUG = true
 if DEBUG then pcall(require,'strict') end
+
+-- luacheck: globals cparser, ignore 43 4/ti 4/li
+
 
 ---------------------------------------------------
 ---------------------------------------------------
@@ -2818,3 +2821,4 @@ cparser.declToString = declToString
 
 return cparser
   
+
