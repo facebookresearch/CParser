@@ -4,7 +4,7 @@
 --
 -- Copyright (c) 2015-present, Facebook, Inc.
 -- All rights reserved.
---
+
 -- This source code is licensed under the BSD-style license found in
 -- the LICENSE file in the root directory of this source tree. An
 -- additional grant of patent rights can be found in the PATENTS file
@@ -1661,6 +1661,11 @@ local function addQualifier(ty, q)
    return ty
 end
 
+local function typeIs(ty,tag)
+   assert(ty)
+   if ty.tag == 'Qualified' then ty = ty.t end
+   return ty.tag == tag
+end
 
 -- This function compares two types. When optional argument <oki> is
 -- not false and types t1 or t2 are incomplete, the function returns
@@ -1877,7 +1882,7 @@ local function declToString(action)
       end
       if action.intval then
 	 s = s .. ' = ' .. action.intval
-      elseif action.init and action.type.tag == 'Function' then
+      elseif action.init and typeIs(action.type, 'Function') then
 	 s = s .. "{..}"
       elseif action.init then
 	 s = s .. "=.."
@@ -2164,7 +2169,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 return
       end
       -- handle variable and constants
-      if ty.tag == 'Function' then
+      if typeIs(ty, 'Function') then
 	 if init then
 	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init}
 	 else
@@ -2476,7 +2481,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 -- parse declarator
 	 local name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
 	 -- first declarator may be a function definition
-	 if context == 'global' and name and ty.tag=='Function' and tok == '{' then
+	 if context == 'global' and name and typeIs(ty,'Function') and tok == '{' then
 	    local body = skipPar({})
 	    xassert(sclass ~= 'typedef', options, where,
 		    "storage class %s is not adequate for a function definition", sclass)
@@ -2485,7 +2490,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 end
 	 -- process declarators
 	 while true do
-	    if ty.tag == 'Function' then
+	    if typeIs(ty,'Function') then
 	       if not where then error() end
 	       processDeclaration(where, symtable, context, name, ty, sclass)
 	    else
@@ -2521,8 +2526,9 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 else
 	    local lty, lextra = parseDeclarationSpecifiers(nsymtable, 'param', true)
 	    local pname, pty = parseDeclarator(lty, lextra, nsymtable, 'param', true)
-	    if pty.tag == 'Type' and pty.n == 'void' then
-	       xassert(i==0 and not pname and tok==')',options,n,
+	    local sty = pty.tag == 'Qualified' and pty.t or pty
+	    if sty.tag == 'Type' and sty.n == 'void' then
+	       xassert(i==0 and not pname and tok==')' and pty == sty, options, n,
 		       "void in function parameters must appear first and alone")
 	       return ty
 	    else
@@ -2623,7 +2629,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       local i = 1
       local v,a = 1,0
       local ty = Enum{n=ttag}
-      local ity = Qualified{namedType(globals, "int"),const=true,_enum=ty}
+      local ity = Qualified{t=namedType(globals, "int"),const=true,_enum=ty}
       local where = n
       check('{') ti()
       repeat
