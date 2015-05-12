@@ -24,7 +24,11 @@ local unpack = unpack or table.unpack
 local DEBUG = true
 if DEBUG then pcall(require,'strict') end
 
--- luacheck: globals cparser, ignore 43 4/ti 4/li
+-- luacheck: globals cparser
+-- luacheck: ignore 43 4/ti 4/li
+-- luacheck: ignore 212/.*_
+-- luacheck: ignore 211/is[A-Z].* 211/Type
+-- luacheck: ignore 542
 
 
 ---------------------------------------------------
@@ -126,9 +130,8 @@ local function newTag(tag)
    end
 end
 
-local Node = newTag(nil) -- hack to print any table: print(Node(nn))
-local function unused() end
-unused(Node)
+-- hack to print any table: print(Node(nn))
+local Node = newTag(nil)   -- luacheck: ignore 211
 
 ---------------------------------------------------
 ---------------------------------------------------
@@ -348,8 +351,7 @@ end
 -- For all other values, this function yields the value plut its extra arguments.
 -- Argument options is ignored.
 
-local function yieldFromIterator(options, iter)
-   unused(options)
+local function yieldFromIterator(options_, iter)
    local function yes(v,...) coroutine.yield(v,...) return v end
    while yes(iter()) do end
 end
@@ -360,8 +362,8 @@ end
 -- For all other values, this function yields the value plut its extra arguments.
 -- Argument options is ignored.
 
-local function yieldFromArray(options, arr, ...)
-   unused(options)
+local function yieldFromArray(options_, arr, ...)
+   -- luacheck: ignore 212/options
    for _,v in ipairs(arr) do
       if type(v) == 'table' then
 	 coroutine.yield(unpack(v))
@@ -389,8 +391,7 @@ end
 -- Lua provides good line iterators such as:
 --   io.lines(filename) filedesc:lines()  str:gmatch("[^\n]+")
 
-local function yieldLines(options,lineIterator,prefix)
-   unused(options)
+local function yieldLines(options_,lineIterator,prefix)
    prefix = prefix or ""
    assert(type(prefix)=='string')
    local n = 0
@@ -539,8 +540,6 @@ local function isKeyword(tok) -- Subtype of identifier
 local function isName(tok) -- Subtype of identifier
    return tok and isIdentifier(tok) and not keywordHash[tok] end
 
-unused(isPunctuator)
-unused(isKeyword)
 
 -- The tokenizeLine() function takes a line, splits it into tokens,
 -- and yields tokens and locations. The number tokens are the weird
@@ -2102,7 +2101,6 @@ local function parseDeclarations(options, globals, tokens, ...)
       return ty
    end
    local function Type() assert(false) end
-   unused(Type) -- should stay unused
    
    -- check that current token is one of the provided token strings
    local function check(s1,s2)
@@ -2296,8 +2294,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 end
 	 if p == 'size' and ltok == 'long' and nn[p] == 'long' then
 	    nn[p] = 'long long'
-	 elseif p=='attr' then
-	    unused() -- already done
+	 elseif p == 'attr' then
+	    -- nothing
          elseif p=='type' and nn[p] then
 	    xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
 	 elseif nn[p] then
@@ -2516,8 +2514,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       check(';') ti()
    end
    
-   parsePrototype = function(rty,symtable,context,abstract)
-      unused(context,abstract)
+   parsePrototype = function(rty,symtable,context_,abstract_)
       local nsymtable = newScope(symtable)
       local ty = Function{t=rty}
       local i=0
@@ -2548,8 +2545,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       return ty
    end
    
-   parseStruct = function(symtable, context, abstract, nn)
-      unused(abstract)
+   parseStruct = function(symtable, context, abstract_, nn)
       check('struct', 'union')
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
@@ -2620,8 +2616,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       end
    end
    
-   parseEnum = function(symtable, context, abstract, nn)
-      unused(abstract)
+   parseEnum = function(symtable, context, abstract_, nn)
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
       local ttag, tnam
