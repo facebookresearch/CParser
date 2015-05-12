@@ -1721,7 +1721,7 @@ local function compareTypes(t1, t2, oki)
 	    return oki
 	 elseif #t1 == #t2 then
 	    for i=1,#t1 do
-	       if t1[i] == nil or t2[i] == nil then
+	       if t1[i][1] == nil or t2[i][1] == nil then
 		  return t1[i].ellipsis and t2[i].ellipsis
 	       elseif not compareTypes(t1[i][1],t2[i][1],oki) then
 		  return false
