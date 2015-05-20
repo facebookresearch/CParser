@@ -12,7 +12,19 @@
 
 
 
-cparser = require 'cparser'
+local function smartrequire(s)
+   local savedpath=package.path
+   local thisfile=debug.getinfo(2).source
+   if type(thisfile)=='string' and thisfile:find("^@") then
+      local thisdir=thisfile:gsub("^@",""):gsub("[^/]*$","")
+      package.path=thisdir.."?.lua;"..package.path
+   end
+   local r = require(s)
+   package.path = savedpath
+   return r
+end
+
+cparser = smartrequire 'cparser'
 io = require 'io'
 
 local function die(s,...)
