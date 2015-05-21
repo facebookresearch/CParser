@@ -316,7 +316,9 @@ end
 
 -- Wrap a coroutine f into an iterator
 -- The options and all the extra arguments are passed
--- to the coroutine when it starts
+-- to the coroutine when it starts. Together with the
+-- above calling convention, this lets us specify
+-- coroutine pipelines (see example in function "cpp".)
 
 local function wrap(options, f, ...)
    local function g(...) coroutine.yield(nil) f(...) end
@@ -2185,8 +2187,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    local v = ty.tag == 'Qualified' and ty.const and init or nil
 	    if type(v) == 'table' then
 	       v = tryEvaluateConstantExpression(options,where,init,symtable)
-	    elseif type(v) == 'number' then
-	       v = init
+	    elseif type(v) == 'number' then -- happens when called from parseEnum
 	       init = {tostring(v), where}
 	    end
 	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
