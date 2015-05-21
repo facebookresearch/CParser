@@ -347,8 +347,6 @@ end
 
 
 -- Yields all outputs from iterator iter.
--- This function unpacks table values and yields the result.
--- For all other values, this function yields the value plut its extra arguments.
 -- Argument options is ignored.
 
 local function yieldFromIterator(options_, iter)
