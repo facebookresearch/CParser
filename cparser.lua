@@ -2045,6 +2045,10 @@ local function getSpecifierTable(options)
       __fastcall    = 'attr',       -- msvc
       __stdcall     = 'attr',       -- msvc
       __based       = 'attr',       -- msvc
+      __int8        = 'type',       -- msvc
+      __int16       = 'type',       -- msvc
+      __int32       = 'type',       -- msvc
+      __int64       = 'type',       -- msvc
       _Bool         = not options.dialectAnsi and 'type',
       restrict      = not options.dialectAnsi and 'restrict',
       _Complex      = not options.dialectAnsi and 'complex',
@@ -2333,6 +2337,9 @@ local function parseDeclarations(options, globals, tokens, ...)
       elseif nn.type == 'float' then
 	 if nn.complex then
 	    nn.type='_Complex '..nn.type nn.complex=nil end
+      elseif type(nn.type)=='string' and nn.type:find('^__int%d+$') then
+	 if nn.sign then
+	    nn.type=nn.sign..' '..nn.type nn.sign=nil end
       end
       if nn.atomic then
          nn.type='_Atomic '..nn.type nn.atomic = nil -- could be narrower
