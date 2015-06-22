@@ -407,7 +407,7 @@ local function yieldLines(options_,lineIterator,prefix)
 end
 
 
--- A routine that obtain lines from coroutine <lines>,
+-- A routine that obtains lines from coroutine <lines>,
 -- joins lines terminated by a backslash, and yield the
 -- resulting lines. The coroutine is initialized with
 -- argument <options> and all extra arguments.
@@ -670,13 +670,15 @@ end
 -- perform macro expansions. Both take a table of macro definitions as
 -- argument. The first one writes into the table and the second one
 -- reads from it.
+--
+-- Each macro definition is an array of tokens (for a single line
+-- macro) or a table whose entry <"lines"> contains an array of arrays
+-- of tokens (#defmacro).  f the macro takes arguments, the entry
+-- <"args"> contains a list of argument names. If the macro is
+-- recursive (#defrecmacro), the entry <recursive> is set.
+-- Alternatively, the macro definition may be a function called at
+-- macro-expansion time. This provides for complicated situations.
 
--- Each macro definition is simply an array of tokens.
--- If the macro takes arguments (function-like macro),
--- the table also contains an entry 'args' with a list
--- of argument names. Finally the table may contain
--- a function which is called at macro-expansion time.
--- This provides for complicated situations.
 
 -- forward declarations
 local function expandMacros() end
@@ -692,7 +694,9 @@ expandMacros = function(options, macros, tokens, ...)
    local tok, n = ti()
    -- redefine ti() to ensure tok,n remain up-to-date
    local ti = function() tok,n=ti() return tok,n end
-   -- create a macro table that inherits <macros> but hides <symbol>
+   -- create a macro table that is used to process the expansion of
+   -- the macro named <symbol>. In general one hides <symbol> to
+   -- prevent recursion, except when dealing with a recursive macro...
    local function hideMacro(macros,symbol)
       local nmacros = {}
       setmetatable(nmacros, {__index=macros})
@@ -1043,7 +1047,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
 end
 
 
--- Now dealing with the coroutine thay processes all directives.
+-- Now dealing with the coroutine that processes all directives.
 -- This coroutine obtains lines from coroutine <lines>,
 -- processes all directives, and yields remaining lines
 
