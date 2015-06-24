@@ -635,7 +635,9 @@ local function tokenizeLine(options, s, n, notNewline)
 	 p = q + 1
 	 return r, n
       end
-      -- error
+      -- other stuff (we prefer to signal an error here)
+      -- p = p + 1
+      -- return s:sub(p-1,p-1)
       xerror(options, n,"Unrecognized character (%s)", s:sub(p))
    end
    -- loop
@@ -853,7 +855,7 @@ expandMacros = function(options, macros, tokens, ...)
 	 repeat ti() until not isSpace(tok)
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
-	    coroutine.yield(tok, nn)
+	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
 	 else
 	    local nmacros = hideMacro(macros,ntok)
 	    local nargs = collectArguments(ti,def.args,ntok,nn)
@@ -865,7 +867,7 @@ expandMacros = function(options, macros, tokens, ...)
 	 repeat ti() until not isSpace(tok)
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
-	    coroutine.yield(tok, nn)
+	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
 	 else
 	    local lines = def.lines
 	    local nargs = collectArguments(ti,def.args,ntok,nn)
