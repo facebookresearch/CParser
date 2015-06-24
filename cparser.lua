@@ -752,6 +752,7 @@ expandMacros = function(options, macros, tokens, ...)
    -- collects all macro arguments
    local function collectArguments(ti,args,ntok,nn)
       local nargs = { [0]={} }
+      if #args == 0 then ti() end
       for _,name in ipairs(args) do
 	 if tok == ')' and name == "__VA_ARGS__" then
 	    nargs[0][name] = { negComma=true }
@@ -763,14 +764,14 @@ expandMacros = function(options, macros, tokens, ...)
 	    nargs[name] = callAndCollect(options, expandMacros, macros, yieldFromArray, arg, nn)
 	 end
       end
-      xassert(tok, options, nn, "unterminated arguments for macro '%s'", tok)
-      xassert(tok==')', options, nn, "too many arguments for macro '%s'", tok)
+      xassert(tok, options, nn, "unterminated arguments for macro '%s'", ntok)
+      xassert(tok==')', options, nn, "too many arguments for macro '%s'", ntok)
       return nargs
    end
    -- coroutine that substitute the macro arguments
    -- and stringification and concatenation are handled here
    local function substituteArguments(options, def, nargs, n, inDirective)
-      local uargs = nargs[0] -- unprocessed values
+      local uargs = nargs[0] or nargs -- unprocessed values
       if inDirective then nargs = uargs end  -- always use unprocessed in directives
       -- prepare loop
       local i,j,k = 1,1,1
@@ -845,7 +846,7 @@ expandMacros = function(options, macros, tokens, ...)
       elseif def.args == nil then
 	 -- object-like macro
 	 local nmacros = hideMacro(macros,tok)
-	 expandMacros(options, nmacros, yieldFromArray, def, n)
+	 expandMacros(options, nmacros, substituteArguments, def, {}, n)
       elseif def.lines == nil then
 	 -- single-line function-like macro
 	 local ntok,nn = tok,n
