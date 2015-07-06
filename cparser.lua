@@ -507,7 +507,7 @@ local punctuatorTable = {
    "(", ")", "[", "]", "{", "}", "++", "--",
    "==", "!=", ">=", "<=", ">", "<", "&&", "||", "!",
    ".", "->", "*", "&", "?", ":", "::", "->*", ".*", ";", ",",
-   "#", "##", "..." -- preprocessor stuff
+   "#", "##", "...", "@", "\\" -- preprocessor stuff
 }
 
 local keywordHash = {}
@@ -636,8 +636,6 @@ local function tokenizeLine(options, s, n, notNewline)
 	 return r, n
       end
       -- other stuff (we prefer to signal an error here)
-      -- p = p + 1
-      -- return s:sub(p-1,p-1)
       xerror(options, n,"Unrecognized character (%s)", s:sub(p))
    end
    -- loop
@@ -792,10 +790,15 @@ expandMacros = function(options, macros, tokens, ...)
 	    updateJandK()
 	    -- alternatives
 	    if def[i]=='#' and def[j] and nargs[def[j]] then
-	       -- stringification
-	       local v = def[j]
-	       local s = string.format("%q", table.concat(uargs[v])):gsub("\\\n","\\n")
-	       coroutine.yield(s, n)
+	       -- stringification (with the weird quoting rules)
+	       local v = { '\"' }
+	       for _,t in ipairs(uargs[def[j]]) do
+		  if t:find("^%s+$") then t = ' ' end
+		  if t:find("^[\'\"]") then t = t:gsub("[\'\"]","\\%1") end
+		  v[1+#v] = t
+	       end
+	       v[1+#v] = '\"'
+	       coroutine.yield(table.concat(v), n)
 	       i = j
 	    elseif def[j]=='##' and def[k] and not inDirective then
 	       -- concatenation
