@@ -364,7 +364,7 @@ end
 
 -- Yields all values from array <arr>.
 -- This function unpacks table values and yields the result.
--- For all other values, this function yields the value plut its extra arguments.
+-- For all other values, this function yields the value plus its extra arguments.
 -- Argument options is ignored.
 
 local function yieldFromArray(options_, arr, ...)
@@ -673,7 +673,7 @@ end
 --
 -- Each macro definition is an array of tokens (for a single line
 -- macro) or a table whose entry <"lines"> contains an array of arrays
--- of tokens (#defmacro).  f the macro takes arguments, the entry
+-- of tokens (#defmacro). If the macro takes arguments, the entry
 -- <"args"> contains a list of argument names. If the macro is
 -- recursive (#defrecmacro), the entry <recursive> is set.
 -- Alternatively, the macro definition may be a function called at
