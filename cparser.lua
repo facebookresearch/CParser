@@ -783,7 +783,7 @@ expandMacros = function(options, macros, tokens, ...)
 	       local v = { '\"' }
 	       for _,t in ipairs(uargs[def[j]]) do
 		  if t:find("^%s+$") then t = ' ' end
-		  if t:find("^[\'\"]") then t = t:gsub("[\'\"]","\\%1") end
+		  if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
 		  v[1+#v] = t
 	       end
 	       v[1+#v] = '\"'
