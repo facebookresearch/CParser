@@ -296,7 +296,7 @@ end
 -- Bitwise manipulations
 -- try lua53 operators otherwise revert to iterative version
 
-local bit = evalLuaExpression [==[
+local bit = evalLuaExpression [[
    local bit = {} 
    function bit.bnot(a) return ~a end
    function bit.bor(a,b) return a | b end
@@ -304,7 +304,7 @@ local bit = evalLuaExpression [==[
    function bit.bxor(a,b) return a ~ b end
    function bit.lshift(a,b) return a < 0 and b < 0 and ~((~a) << b) or a << b end
    return bit 
-]==]
+]]
 
 if not bit then 
    local function bor(a,b)
@@ -543,7 +543,7 @@ local function isKeyword(tok) -- Subtype of identifier
 local function isName(tok) -- Subtype of identifier
    return isIdentifier(tok) and not keywordHash[tok] end
 
--- Magic tokens are used to mark macro expansion boundaries. See applyMacros.
+-- Magic tokens are used to mark macro expansion boundaries (see expandMacros.)
 local function isMagic(tok)
    return tok and type(tok) ~= 'string' end
 local function isBlank(tok) -- Treats magic token as space.
@@ -690,43 +690,49 @@ local function processDirectives() end
 
 -- Starting with the second coroutine which takes a token producing
 -- coroutine and yields the preprocessed tokens. Argument macros is
--- the macro definition table.  
+-- the macro definition table.
 
-
-
+-- In order to implement the standard, this function brackets every
+-- macro expansion with magic tokens in order to track which macro
+-- definitions must be disabled during subsequent calls to
+-- expandMacros. These magic tokens are removed later in the
+-- coroutines <filterSpaces> or <preprocessedLines>.
+-- This is ugly but necessary...
 
 expandMacros = function(options, macros, tokens, ...)
+   -- basic iterator
    local ti = wrap(options, tokens, ...)
-   local tok, n = ti()
-   -- redefine ti() to ensure tok,n remain up-to-date
-   local ti = function() tok,n=ti() return tok,n end
-   -- create a macro table that is used to process the expansion of
-   -- the macro named <symbol>. In general one hides <symbol> to
-   -- prevent recursion, except when dealing with a recursive macro...
-   local function hideMacro(macros,symbol)
-      local nmacros = {}
-      setmetatable(nmacros, {__index=macros})
-      if macros[symbol] and macros[symbol].recursive then
-	 -- limit number of recursive macro invocations
-	 if not options.maxrecursion then
-	    for _,v in ipairs(options) do
-	       if type(v)=='string' and v:find("^%-Zmaxrecursion=") then
-		  options.maxrecursion = tonumber(v:match("-Zmaxrecursion=%s*(%d+)%s*$"))
-	       end
-	    end
+   -- prepending tokens to the token stream
+   local prepend = {}
+   local function prependToken(s,n)
+      table.insert(prepend,{s,n}) end
+   local function prependTokens(pti) 
+      local pos = 1+#prepend
+      for s,n in pti do table.insert(prepend,pos,{s,n}) end end
+   local ti = function()
+      if #prepend > 0 then return unpack(table.remove(prepend))
+      else return ti() end end
+   -- iterator that handles magic tokens to update macro definition table
+   local ti = function()
+      local s,n = ti()
+      while type(s) == 'table' do
+	 if s.tag == 'push' then
+	    local nmacros = {}
+	    setmetatable(nmacros, {__index=macros})
+	    if s.symb then nmacros[s.symb] = false end
+	    macros = nmacros
+	 elseif s.tag == 'pop' then
+	    local mt = getmetatable(macros)
+	    if mt and mt.__index then macros = mt.__index end
 	 end
-	 -- we use macros[0] to keep track of the recursion count.
-	 -- this is not going to collide with any macro symbol because 0 is a number.
-	 local maxrecursion = options.maxrecursion or 100
-	 nmacros[0] = 1 + (macros[0] or 0) 
-	 xassert(nmacros[0] < maxrecursion, options, n,
-	 	 "more than %d recursive macro invocations", maxrecursion)
-      else
-	 -- standard recursion prevention feature
-	 nmacros[symbol] = false
+	 coroutine.yield(s,n)
+	 s,n = ti()
       end
-      return nmacros
+      return s,n
    end
+   -- redefine ti() to ensure tok,n remain up-to-date
+   local tok,n = ti()
+   local ti = function() tok,n=ti() return tok,n end
    -- collect one macro arguments into an array
    -- stop when reaching a closing parenthesis or a comma 
    local function collectArgument(ti, varargs)
@@ -856,64 +862,66 @@ expandMacros = function(options, macros, tokens, ...)
 	 def(ti,tok,n)
       elseif def.args == nil then
 	 -- object-like macro
-	 local nmacros = hideMacro(macros,tok)
-	 expandMacros(options, nmacros, substituteArguments, def, {}, n)
-      elseif def.lines == nil then
-	 -- single-line function-like macro
-	 local ntok,nn = tok,n
-	 repeat ti() until not isBlank(tok)
-	 if (tok ~= '(') then
-	    coroutine.yield(ntok, nn)
-	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
-	 else
-	    local nmacros = hideMacro(macros,ntok)
-	    local nargs = collectArguments(ti,def.args,ntok,nn)
-	    expandMacros(options, nmacros, substituteArguments, def, nargs, nn)
-	 end
+	 prependToken({tag='pop'},n)
+	 prependTokens(wrap(options, substituteArguments, def, {}, n))
+	 prependToken({tag='push', symb=tok},n)
       else
-	 -- multi-line function-like macro
-	 local ntok,nn = tok,n
-	 repeat ti() until not isBlank(tok)
+	 -- function-like macro
+	 local ntok, nn = tok,n
+	 ti()
+	 local blanks = {}
+	 while isBlank(tok) do table.insert(blanks,{tok,n}) ti() end
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
-	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
+	    for i=1,#blanks,2 do coroutine.yield(blanks[i],blanks[i+1]) end
+	    if tok then prependToken(tok,n) end
 	 else
-	    local lines = def.lines
 	    local nargs = collectArguments(ti,def.args,ntok,nn)
-	    local nmacros = hideMacro(macros,ntok)
-	    -- a coroutine that yields the macro definition
-	    local function yieldMacroLines()
-	       local count = 0
-	       for i=1,#lines,2 do
-		  local ls,ln = lines[i], lines[i+1]
- 		  -- are we possibly in a cpp directive
-		  local dir = false
-		  if ls[2] and ls[2]:find('^#') then
-		     dir = isIdentifier(ls[3]) and ls[3] or ls[4]
+	    if def.lines == nil then
+	       -- single-line function-like macro
+	       prependToken({tag='pop'},n)
+	       prependTokens(wrap(options, substituteArguments, def, nargs, nn))
+	       prependToken({tag='push', symb=ntok},nn)
+	    else
+	       -- multi-line function-like macro
+	       local lines = def.lines
+	       -- a coroutine that yields the macro definition
+	       local function yieldMacroLines()
+		  local count = 0
+		  for i=1,#lines,2 do
+		     local ls,ln = lines[i], lines[i+1]
+		     -- are we possibly in a cpp directive
+		     local dir = false
+		     if ls[2] and ls[2]:find('^#') then
+			dir = isIdentifier(ls[3]) and ls[3] or ls[4]
+		     end
+		     if dir and nargs[dir] then
+			dir = false      -- leading stringification
+		     elseif dir == 'defmacro' then
+			count = count + 1  -- entering a multiline macto
+		     elseif dir == 'endmacro' then
+			count = count - 1  -- leaving a multiline macro
+		     end
+		     dir = dir or count > 0
+		     -- substitute
+		     ls = callAndCollect(options,substituteArguments,ls,nargs,ln,dir)
+		     -- compute lines (optimize speed by passing body lines as tokens)
+		     local j=1
+		     while isBlank(ls[j]) do j=j+1 end
+		     if ls[j] and ls[j]:find("^#") then -- but not directives
+			ls = ls[1]:sub(2) .. tableConcat(ls, nil, 2)
+		     end
+		     coroutine.yield(ls,ln)
 		  end
-		  if dir and nargs[dir] then
-		     dir = false      -- leading stringification
-		  elseif dir == 'defmacro' then
-		     count = count + 1  -- entering a multiline macto
-		  elseif dir == 'endmacro' then
-		     count = count - 1  -- leaving a multiline macro
-		  end
-		  dir = dir or count > 0
-		  -- substitute
-		  ls = callAndCollect(options,substituteArguments,ls,nargs,ln,dir)
-		  -- compute lines (optimize speed by passing body lines as tokens)
-		  local j=1
-		  while isBlank(ls[j]) do j=j+1 end
-		  if ls[j] and ls[j]:find("^#") then -- but not directives
-		     ls = ls[1]:sub(2) .. tableConcat(ls, nil, 2)
-		  end
-		  coroutine.yield(ls,ln)
 	       end
+	       -- recursively reenters preprocessing subroutines
+	       local nmacros = {}
+	       setmetatable(nmacros,{__index=macros})
+	       if not def.recursive then nmacros[ntok]=false end
+	       if not def.recursive then coroutine.yield({tag='push',symb=ntok}) end
+	       expandMacros(options, nmacros, tokenize, processDirectives, nmacros, yieldMacroLines)
+	       if not def.recursive then coroutine.yield({tag='pop'}) end
 	    end
-	    -- reenter the preprocessing subroutines
-	    expandMacros(options, nmacros,
-			 tokenize, processDirectives, nmacros,
-			 yieldMacroLines)
 	 end
       end
       ti()
@@ -1054,6 +1062,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       xdebug(n, "eval %s", result)
    end
    -- warn about garbage when called from cpp (but not when called with resolver)
+   while isBlank(tok) do ti() end
    xassert(resolver or not tok, options, n, "garbage after conditional expression");
    return result
 end
@@ -1223,7 +1232,9 @@ processDirectives = function(options, macros, lines, ...)
       local tok = pti()
       while isBlank(tok) do tok=pti() end
       xassert(isString(tok) and tok:find("^[\"<]"), options, n, "string expected after #include")
-      if pti() then xwarning(options, n, "garbage after #include directive") end
+      local ttok = pti()
+      while isBlank(ttok) do ttok=pti() end
+      if ttok then xwarning(options, n, "garbage after #include directive") end
       -- interpret filename
       local sys = tok:byte() == 60
       local min = dirtok=="include_next" and options.includedir or 0

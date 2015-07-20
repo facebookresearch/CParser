@@ -22,9 +22,8 @@
     infinite(x)
 #endmacro
 
-int[] a = { notseq(10) }
-
+int a[] = { notseq(10) };
       
-int[] a = { sequence(10) }
+int a[] = { sequence(10) };
 
 infinite(0)
