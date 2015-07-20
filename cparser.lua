@@ -272,6 +272,15 @@ local function tableAppend(a1, a2)
    end
 end
 
+-- Concatenate strings from table (skipping non-string content.)
+
+local function tableConcat(a)
+   local b = {}
+   for _,v in ipairs(a) do
+      if type(v) == 'string' then b[1+#b]=v end end
+   return table.concat(b)
+end
+
 
 -- Evaluate a lua expression, return nil on error.
 
@@ -676,7 +685,10 @@ local function processDirectives() end
 
 -- Starting with the second coroutine which takes a token producing
 -- coroutine and yields the preprocessed tokens. Argument macros is
--- the macro definition table.
+-- the macro definition table.  
+
+
+
 
 expandMacros = function(options, macros, tokens, ...)
    local ti = wrap(options, tokens, ...)
@@ -787,7 +799,7 @@ expandMacros = function(options, macros, tokens, ...)
 		  v[1+#v] = t
 	       end
 	       v[1+#v] = '\"'
-	       coroutine.yield(table.concat(v), n)
+	       coroutine.yield(tableConcat(v), n)
 	       i = j
 	    elseif def[j]=='##' and def[k] and not inDirective then
 	       -- concatenation
@@ -802,7 +814,7 @@ expandMacros = function(options, macros, tokens, ...)
 		  i = k
 		  updateJandK()
 	       end
-	       tokenizeLine(options, table.concat(u), n, true)
+	       tokenizeLine(options, tableConcat(u), n, true)
 	    elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')'
 	       and nargs[def[j]].negComma then
 	       -- negative comma
@@ -883,12 +895,12 @@ expandMacros = function(options, macros, tokens, ...)
 		  end
 		  dir = dir or count > 0
 		  -- substitute
-		  --print(string.format("<<< [%s]",table.concat(ls,"|",2)))
 		  ls = callAndCollect(options,substituteArguments,ls,nargs,ln,dir)
-		  --print(string.format(">>> [%s]",table.concat(ls,"|",2)))
 		  -- compute lines (optimize speed by passing body lines as tokens)
-		  if ls[2] and ls[2]:find("^#") then -- but not directives
-		     ls = ls[1]:sub(2) .. table.concat(ls, nil, 2)
+		  local j=1
+		  while isBlank(ls[j]) do j=j+1 end
+		  if ls[j] and ls[j]:find("^#") then -- but not directives
+		     ls = ls[1]:sub(2) .. tableConcat(ls, nil, 2)
 		  end
 		  coroutine.yield(ls,ln)
 	       end
@@ -1132,8 +1144,8 @@ processDirectives = function(options, macros, lines, ...)
       macros[nam] = def
       -- debug
       if hasOption(options, "-d:defines") then
-	 if args then args = "(" .. table.concat(args,",") .. ")" else args = "" end
-	 xdebug(n, "define %s%s = %s", nam, args, table.concat(def,' '))
+	 if args then args = "(" .. tableConcat(args,",") .. ")" else args = "" end
+	 xdebug(n, "define %s%s = %s", nam, args, tableConcat(def,' '))
       end
       -- capture integer macro definitions
       if hasCaptureTable() and args == nil then
@@ -1193,9 +1205,9 @@ processDirectives = function(options, macros, lines, ...)
 	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
       end
       if hasOption(options, "-d:defines") then
-	 xdebug(nn, "defmacro %s(%s) =", nam, table.concat(args,','))
+	 xdebug(nn, "defmacro %s(%s) =", nam, tableConcat(args,','))
 	 for i=1,#lines,2 do
-	    xdebug(lines[i+1], "\t%s", table.concat(lines[i]):gsub("^\n","")) end
+	    xdebug(lines[i+1], "\t%s", tableConcat(lines[i]):gsub("^\n","")) end
       end
       macros[nam] = def
    end
@@ -1271,7 +1283,7 @@ processDirectives = function(options, macros, lines, ...)
 	 r = doConditionalBranch(not result)
       end
       if hasOption(options,"-d:directives") then
-	 xdebug(n, "directive: %s",s)
+	 xdebug(n, "directive: %s",s:gsub('^%s*',''))
       end
    end
    local function doIfdef(ti)
@@ -1327,7 +1339,7 @@ processDirectives = function(options, macros, lines, ...)
 	 coroutine.yield(ns, n)
       else
 	 if hasOption(options, "-d:directives") then
-	    xdebug(n, "directive: %s",s)
+	    xdebug(n, "directive: %s",s:gsub('^%s*',''))
 	 end
 	 -- tokenize directive
 	 local ti = wrap(options, tokenizeLine, s, n)
@@ -1458,13 +1470,13 @@ local function macroToString(macros, name)
 	 for i = 1, #v.lines, 2 do
 	    local vl = v.lines[i]
 	    arr[1+#arr] = '\n'
-	    if type(vl)=='table' then vl=table.concat(vl) end
+	    if type(vl)=='table' then vl=tableConcat(vl) end
 	    arr[1+#arr] = vl:gsub('^%s?%s?','  '):gsub('^\n','')
 	 end
 	 arr[1+#arr] = '\n'
 	 arr[1+#arr] = "#endmacro"
       end
-      return table.concat(arr)
+      return tableConcat(arr)
    end
 end
 
