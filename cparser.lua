@@ -523,26 +523,31 @@ end
 
 
 -- The following functions test the types of the tokens returned by the tokenizer.
--- They should not be applied to arbitrary strings
+-- They should not be applied to arbitrary strings.
 
 local function isSpace(tok)
-   return tok and tok:find("^%s") ~= nil end
+   return type(tok) == 'string' and tok:find("^%s") ~= nil end
 local function isNewline(tok) -- Subtype of space
-   return tok and tok:find("^\n") ~= nil end 
+   return type(tok) == 'string' and tok:find("^\n") ~= nil end
 local function isNumber(tok)
-   return tok and tok:find("^[.0-9]") ~= nil end
+   return type(tok) == 'string' and tok:find("^[.0-9]") ~= nil end
 local function isString(tok)
    if tok then return tok:find("^[\'\"]") ~= nil
       or tok:find("^<") and tok:find(">$") end end
 local function isPunctuator(tok)
-   return tok and punctuatorHash[tok] ~= nil end
+   return type(tok) == 'string' and punctuatorHash[tok] ~= nil end
 local function isIdentifier(tok)
-   return tok and tok:find("^[A-Za-z_$]") ~= nil end
+   return type(tok) == 'string' and tok:find("^[A-Za-z_$]") ~= nil end
 local function isKeyword(tok) -- Subtype of identifier
-   return tok and keywordHash[tok] ~= nil end
+   return keywordHash[tok] ~= nil end
 local function isName(tok) -- Subtype of identifier
-   return tok and isIdentifier(tok) and not keywordHash[tok] end
+   return isIdentifier(tok) and not keywordHash[tok] end
 
+-- Magic tokens are used to mark macro expansion boundaries. See applyMacros.
+local function isMagic(tok)
+   return tok and type(tok) ~= 'string' end
+local function isBlank(tok) -- Treats magic token as space.
+   return isMagic(tok) or isSpace(tok) end
 
 -- The tokenizeLine() function takes a line, splits it into tokens,
 -- and yields tokens and locations. The number tokens are the weird
@@ -777,16 +782,16 @@ expandMacros = function(options, macros, tokens, ...)
       -- prepare loop
       local i,j,k = 1,1,1
       while def[i] do
-	 if isSpace(def[i]) then
-	    -- copy spaces
+	 if isBlank(def[i]) then
+	    -- copy blanks
 	    coroutine.yield(def[i], n)
 	 else
 	    -- positions j and k on next non-space tokens
 	    local function updateJandK()
 	       if j <= i then j=i
-		  repeat j=j+1 until def[j] == nil or not isSpace(def[j]) end
+		  repeat j=j+1 until def[j] == nil or not isBlank(def[j]) end
 	       if k <= j then k=j
-		  repeat k=k+1 until def[k] == nil or not isSpace(def[k]) end
+		  repeat k=k+1 until def[k] == nil or not isBlank(def[k]) end
 	    end
 	    updateJandK()
 	    -- alternatives
@@ -836,7 +841,7 @@ expandMacros = function(options, macros, tokens, ...)
       -- detects Zpassed directives
       if newline and tok == '#' then
 	 newline, directive = false, true
-      elseif not isSpace(tok) then
+      elseif not isBlank(tok) then
 	 newline = false
       elseif isNewline(tok) then
 	 newline, directive = true, false
@@ -856,7 +861,7 @@ expandMacros = function(options, macros, tokens, ...)
       elseif def.lines == nil then
 	 -- single-line function-like macro
 	 local ntok,nn = tok,n
-	 repeat ti() until not isSpace(tok)
+	 repeat ti() until not isBlank(tok)
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
 	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
@@ -868,7 +873,7 @@ expandMacros = function(options, macros, tokens, ...)
       else
 	 -- multi-line function-like macro
 	 local ntok,nn = tok,n
-	 repeat ti() until not isSpace(tok)
+	 repeat ti() until not isBlank(tok)
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
 	    if tok then coroutine.yield(tok, nn) end ---- problem hiding here
@@ -927,7 +932,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
    local tok
    local function ti()
       repeat tok = tokenIterator()
-      until not isSpace(tok) return tok
+      until not isBlank(tok) return tok
    end
    -- operator tables
    local unaryOps = {
@@ -1216,7 +1221,7 @@ processDirectives = function(options, macros, lines, ...)
       -- get filename
       local pti = wrap(options, expandMacros, macros, yieldFromIterator, ti)
       local tok = pti()
-      while isSpace(tok) do tok=pti() end
+      while isBlank(tok) do tok=pti() end
       xassert(isString(tok) and tok:find("^[\"<]"), options, n, "string expected after #include")
       if pti() then xwarning(options, n, "garbage after #include directive") end
       -- interpret filename
@@ -1347,8 +1352,9 @@ processDirectives = function(options, macros, lines, ...)
 	 local ti = function(keepSpaces)
 	    tok = ti()
 	    spc = isSpace(tok)
-	    while isSpace(tok) and not keepSpaces do
+	    while not keepSpaces and isBlank(tok) do
 	       tok = ti()
+	       spc = spc or isSpace(tok)
 	    end
 	    return tok, n
 	 end
@@ -1494,7 +1500,7 @@ end
 
 
 
--- A coroutine that filters out spaces and directives.
+-- A coroutine that filters out spaces, directives, and magic tokens
 
 local function filterSpaces(options, tokens, ...)
    local ti = wrap(options, tokens, ...)
@@ -1503,6 +1509,7 @@ local function filterSpaces(options, tokens, ...)
       -- skip directives
       while isNewline(tok) do
 	 tok,n = ti()
+	 while isBlank(tok) do tok,n = ti() end
 	 if tok == '#' then
 	    while not isNewline(tok) do
 	       tok, n = ti()
@@ -1510,7 +1517,7 @@ local function filterSpaces(options, tokens, ...)
 	 end
       end
       -- output nonspaces
-      if not isSpace(tok) then
+      if not isBlank(tok) then
 	 coroutine.yield(tok, n)
       end
       tok,n = ti()
@@ -1554,7 +1561,7 @@ local function preprocessedLines(options, tokens, ...)
 	 tok, n = ti()
       end
       while tok and not isNewline(tok) do
-	 curl[1+#curl] = tok
+	 if not isMagic(tok) then curl[1+#curl] = tok end
 	 tok, n = ti()
       end
       coroutine.yield(table.concat(curl), curn)
