@@ -184,6 +184,14 @@ non-space token is a macro parameter.  This provides a good way to
 distinguish a nested directive from a stringification operator
 appearing in the beginning of a line.
 
+Even more details -- The standard mandates that the tokens generated
+by a macro-expansion can be combined with the following tokens to
+compose a new macro invocation. This is not allowed for multiline
+macros. An error is signaled if the expansion of a multiline macro
+generates an incomplete macro argument list.
+
+
+
 ####  Negative comma in variadic macros
 
 Consider the following variadic macro
