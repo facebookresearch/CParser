@@ -427,20 +427,8 @@ end
 
 local function eliminateComments(options, lines, ...)
    local lineIterator = wrap(options, lines, ...)
-   local inComment = false
    local s,n = lineIterator()
    while type(s) == 'string' do
-      while inComment do
-	 local p = s:find("%*/")
-	 if p ~= nil then
-	    inComment = false
-	    s = s:sub(p+2)
-	 else
-	    local m = n
-	    s, n = lineIterator()
-	    xassert(s ~= nil, options, m, "Unterminated comment")
-	 end
-      end
       local inString = false
       local q = s:find("[\'\"\\/]", 1)
       while q ~= nil do
@@ -465,7 +453,13 @@ local function eliminateComments(options, lines, ...)
 		  s = s:sub(1,q-1) .. " " .. s:sub(p+2)
 	       else
 		  s = s:sub(1,q-1)
-		  inComment = true
+		  local ss,pp
+		  repeat
+		     ss = lineIterator()
+		     xassert(ss ~= nil, options, m, "Unterminated comment")
+		     pp = ss:find("%*/")
+		  until pp
+		  s = s .. " " .. ss:sub(pp+2)
 	       end
 	    end
 	 end
@@ -1133,6 +1127,7 @@ processDirectives = function(options, macros, lines, ...)
       -- define macro
       if macros[nam] and not tableCompare(def,macros[nam]) then
 	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
+	 print(Node(def),Node(macros[nam]))
       end
       macros[nam] = def
       -- debug
