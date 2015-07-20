@@ -363,18 +363,13 @@ end
 
 
 -- Yields all values from array <arr>.
--- This function unpacks table values and yields the result.
--- For all other values, this function yields the value plus its extra arguments.
+-- This function successively yields all values in the table.
+-- Every yield is augmented with all extra arguments passed to the function.
 -- Argument options is ignored.
 
 local function yieldFromArray(options_, arr, ...)
-   -- luacheck: ignore 212/options
    for _,v in ipairs(arr) do
-      if type(v) == 'table' then
-	 coroutine.yield(unpack(v))
-      else
-	 coroutine.yield(v, ...)
-      end
+      coroutine.yield(v, ...)
    end
 end
 
