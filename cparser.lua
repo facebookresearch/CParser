@@ -296,7 +296,7 @@ end
 -- Bitwise manipulations
 -- try lua53 operators otherwise revert to iterative version
 
-local bit = evalLuaExpression [[
+local bit = evalLuaExpression([[
    local bit = {} 
    function bit.bnot(a) return ~a end
    function bit.bor(a,b) return a | b end
@@ -304,7 +304,7 @@ local bit = evalLuaExpression [[
    function bit.bxor(a,b) return a ~ b end
    function bit.lshift(a,b) return a < 0 and b < 0 and ~((~a) << b) or a << b end
    return bit 
-]]
+]])
 
 if not bit then 
    local function bor(a,b)
