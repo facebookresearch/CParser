@@ -296,7 +296,7 @@ end
 -- Bitwise manipulations
 -- try lua53 operators otherwise revert to iterative version
 
-local bit = evalLuaExpression [[
+local bit = evalLuaExpression [==[
    local bit = {} 
    function bit.bnot(a) return ~a end
    function bit.bor(a,b) return a | b end
@@ -304,7 +304,7 @@ local bit = evalLuaExpression [[
    function bit.bxor(a,b) return a ~ b end
    function bit.lshift(a,b) return a < 0 and b < 0 and ~((~a) << b) or a << b end
    return bit 
-]]
+]==]
 
 if not bit then 
    local function bor(a,b)
@@ -532,8 +532,8 @@ local function isNewline(tok) -- Subtype of space
 local function isNumber(tok)
    return type(tok) == 'string' and tok:find("^[.0-9]") ~= nil end
 local function isString(tok)
-   if tok then return tok:find("^[\'\"]") ~= nil
-      or tok:find("^<") and tok:find(">$") end end
+   if type(tok) ~= 'string' then return false end
+   return tok:find("^[\'\"]") ~= nil or tok:find("^<") and tok:find(">$") end
 local function isPunctuator(tok)
    return type(tok) == 'string' and punctuatorHash[tok] ~= nil end
 local function isIdentifier(tok)
@@ -692,17 +692,23 @@ local function processDirectives() end
 -- coroutine and yields the preprocessed tokens. Argument macros is
 -- the macro definition table.
 
--- In order to implement the standard, this function brackets every
--- macro expansion with magic tokens in order to track which macro
--- definitions must be disabled during subsequent calls to
--- expandMacros. These magic tokens are removed later in the
--- coroutines <filterSpaces> or <preprocessedLines>.
--- This is ugly but necessary...
+-- The standard mandates that the result of a macro-expansion must be
+-- scanned for further macro invocations whose argunent list possibly
+-- consume tokens that follow the macro-expansion. This means that one
+-- cannot recursively call expandMacros but one must prepend the
+-- macro-expansion in front of the remaining tokens. The standard also
+-- mandates that the result of any macro-expansion must be marked to
+-- prevent recursive invocation of the macro that generated it,
+-- whether when expanding macro arguments or expanding the macro
+-- itself.  We achieve this by bracketing every macro-expansion with
+-- magic tokens that track which macro definitions must be disabled.
+-- These magic tokens are removed later in the coroutines
+-- <filterSpaces> or <preprocessedLines>.
 
 expandMacros = function(options, macros, tokens, ...)
    -- basic iterator
    local ti = wrap(options, tokens, ...)
-   -- prepending tokens to the token stream
+   -- prepending tokens in front of the token stream
    local prepend = {}
    local function prependToken(s,n)
       table.insert(prepend,{s,n}) end
@@ -783,8 +789,8 @@ expandMacros = function(options, macros, tokens, ...)
    -- coroutine that substitute the macro arguments
    -- and stringification and concatenation are handled here
    local function substituteArguments(options, def, nargs, n, inDirective)
-      local uargs = nargs[0] or nargs -- unprocessed values
-      if inDirective then nargs = uargs end  -- always use unprocessed in directives
+      local uargs = nargs[0] or nargs        -- unexpanded argument values
+      if inDirective then nargs = uargs end  -- use unexpanded arguments in directives
       -- prepare loop
       local i,j,k = 1,1,1
       while def[i] do
@@ -805,10 +811,10 @@ expandMacros = function(options, macros, tokens, ...)
 	       -- stringification (with the weird quoting rules)
 	       local v = { '\"' }
 	       for _,t in ipairs(uargs[def[j]]) do
-		  if t:find("^%s+$") then t = ' ' end
-		  if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
-		  v[1+#v] = t
-	       end
+		  if type(t)=='string' then 
+		     if t:find("^%s+$") then t = ' ' end
+		     if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
+		     v[1+#v] = t end end 
 	       v[1+#v] = '\"'
 	       coroutine.yield(tableConcat(v), n)
 	       i = j
@@ -817,8 +823,7 @@ expandMacros = function(options, macros, tokens, ...)
 	       local u = {}
 	       local function addToU(s)
 		  if nargs[s] then for _,v in ipairs(uargs[s]) do u[1+#u] = v end
-		  else u[1+#u]=s end
-	       end
+		  else u[1+#u]=s end end
 	       addToU(def[i])
 	       while def[j] == '##' and def[k] do
 		  addToU(def[k])
@@ -868,12 +873,12 @@ expandMacros = function(options, macros, tokens, ...)
       else
 	 -- function-like macro
 	 local ntok, nn = tok,n
+	 local spc = false
 	 ti()
-	 local blanks = {}
-	 while isBlank(tok) do table.insert(blanks,{tok,n}) ti() end
+	 if isSpace(tok) then spc=true ti() end
 	 if (tok ~= '(') then
 	    coroutine.yield(ntok, nn)
-	    for i=1,#blanks,2 do coroutine.yield(blanks[i],blanks[i+1]) end
+	    if spc then coroutine.yield(' ', n) end
 	    if tok then prependToken(tok,n) end
 	 else
 	    local nargs = collectArguments(ti,def.args,ntok,nn)
@@ -914,7 +919,9 @@ expandMacros = function(options, macros, tokens, ...)
 		     coroutine.yield(ls,ln)
 		  end
 	       end
-	       -- recursively reenters preprocessing subroutines
+	       -- recursively reenters preprocessing subroutines in order to handle 
+               -- preprocessor directives located inside the macro expansion. As a result
+               -- we cannot expand macro invocations that extend beyond the macro-expansion.
 	       local nmacros = {}
 	       setmetatable(nmacros,{__index=macros})
 	       if not def.recursive then nmacros[ntok]=false end
@@ -1153,7 +1160,6 @@ processDirectives = function(options, macros, lines, ...)
       -- define macro
       if macros[nam] and not tableCompare(def,macros[nam]) then
 	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
-	 print(Node(def),Node(macros[nam]))
       end
       macros[nam] = def
       -- debug
@@ -1191,7 +1197,7 @@ processDirectives = function(options, macros, lines, ...)
 	 if #ss > 0 then lines[1+#lines] = ss ; lines[1+#lines] = n end
 	 local r = checkDirective(stop)
 	 if r == "endmacro" or r == "endif" then
-	    xassert(r==stop,options,n, "unbalanced directives (got #%s instead of #%s)",r,stop)
+	    xassert(r == stop, options,n, "unbalanced directives (got #%s instead of #%s)",r,stop)
 	    return r
 	 elseif r=="defmacro" then
 	    doMacroLines(lines,"endmacro")
@@ -1216,7 +1222,7 @@ processDirectives = function(options, macros, lines, ...)
 	 xdebug(n, "directive: #endmacro")
       end
       if macros[nam] and not tableCompare(def,macros[nam]) then
-	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
+	 xwarning(options, n, "redefinition of preprocessor symbol '%s'", nam)
       end
       if hasOption(options, "-d:defines") then
 	 xdebug(nn, "defmacro %s(%s) =", nam, tableConcat(args,','))
