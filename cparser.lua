@@ -465,7 +465,7 @@ local function eliminateComments(options, lines, ...)
 		  local ss,pp
 		  repeat
 		     ss = lineIterator()
-		     xassert(ss ~= nil, options, m, "Unterminated comment")
+		     xassert(ss ~= nil, options, n, "Unterminated comment")
 		     pp = ss:find("%*/")
 		  until pp
 		  s = s .. " " .. ss:sub(pp+2)
