@@ -2008,11 +2008,11 @@ end
 -- evaluate) or a string containing the expression (when we can't) or
 -- nil (when we are sure this is not a number).  Array <arr> contains
 -- tokens (odd indices) followed by location (even indices). Argument
--- <tstable> is the typespecifier table (optional).
+-- <symtable> is the symbol table.
 --   The alternative is to write a proper expression parse with
--- constant folding as well as providing means to evaluate the
--- value of the sizeof and alignof operators. This is tricky
--- but might be needed if one wants to compute struct layouts.
+-- constant folding as well as providing means to evaluate the value
+-- of the sizeof and alignof operators. This but might be needed if
+-- one wants to compute struct layouts.
 
 local function tryEvaluateConstantExpression(options, n, arr, symtable)
    -- array initializers never are constant integers
@@ -2192,9 +2192,9 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    -- skip balanced tokens until reaching token s1 or s2 or s2.
-   -- in addition s1 may be a table whose keys are the stop token
-   -- new current token immediately follow the stop token
-   -- optionally record tokens into arr and return arr 
+   -- in addition s1 may be a table whose keys are the stop token.
+   -- the new current token immediately follows the stop token.
+   -- optionally records tokens into arr and returns arr. 
    local function skipTo(arr,s1,s2,s3,s4)
       local sn = n
       while tok and tok ~= s1 and tok ~= s2 and tok ~= s3 and tok ~= s4 do

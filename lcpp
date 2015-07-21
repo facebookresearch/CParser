@@ -37,7 +37,7 @@ local function usage()
 Usage: lcpp [options] inputfile.c [-o outputfile.c]
 Main options:
   -Idirname        : Add dirname to the include search path
-  -I-              : Marks beginning of syste include search path
+  -I-              : Marks beginning of system include search path
   -Dsym[=value]    : Define a macro symbol.
   -Usym            : Undefine a macro symbol.
   -Zcppdef         : Extracts initial macro definitions from cpp.
