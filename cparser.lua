@@ -1479,8 +1479,11 @@ local function macroToString(macros, name)
    local v = macros[name]
    if type(v) == 'table' then
       local dir = 'define'
-      if v.recursive and v.lines then dir = 'defrecursivemacro' end
-      if v.lines then dir = 'defmacro' end
+      if v.recursive and v.lines then
+         dir = 'defrecursivemacro' 
+      elseif v.lines then
+         dir = 'defmacro' 
+      end
       local arr = {"#", dir, ' ', name }
       if v.args then
 	 arr[1+#arr] = '('

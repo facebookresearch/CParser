@@ -26,4 +26,6 @@ int a[] = { notseq(10) };
       
 int a[] = { sequence(10) };
 
-infinite(0)
+#ifdef TESTLOOP
+infinite(0);
+#endif
