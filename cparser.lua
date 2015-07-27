@@ -2111,6 +2111,41 @@ local function getSpecifierTable(options)
       _Alignas      = options.dialect11 and "attr",
       _Noreturn     = options.dialect11 and "attr",
       _Thread_local = options.dialect11 and "attr",
+      -- c++ (work-in-progress)
+      char16_t      = options.cplusplus and "type",
+      char32_t      = options.cplusplus and "type",
+      class         = options.cplusplus and "struct",
+      thread_local  = options.cplusplus and "attr",
+      alignas       = options.cplusplus and "attr",
+      alignof       = options.cplusplus and "attr",
+      constexpr     = options.cplusplus and "attr",
+      mutable       = options.cplusplus and "sclass",
+      friend        = options.cplusplus and "friend",
+      virtual       = options.cplusplus and "virtual",
+      explicit      = options.cplusplus and "explicit",
+      typename      = options.cplusplus and "typename",
+      operator      = options.cplusplus and "operator",
+      static_assert = options.cplusplus and "SPECIAL",
+      template      = options.cplusplus and "SPECIAL",
+      namespace     = options.cplusplus and "SPECIAL",
+      using         = options.cplusplus and "SPECIAL",
+      -- things that require type inference (not supported)
+      -- - auto in c++
+      -- - decltype in c++
+      -- - typeof in Gnu dialects
+      -- more things needed for c++ (just notes)
+      -- - enums can be scoped or unscoped and have base types
+      -- - class/structs have member funcs (body, default, delete),
+      -- - class/structs have static, access control, friends, using, nesting.
+      -- - class/structs have initialized members, final/override, base clauses
+      -- - class/structs have destructors, constructors with : and using.
+      -- - operator overloads
+      -- - nested named with operator ::
+      -- - namespace (inline,anonynous,extensions,alias)
+      -- - extern "C" (both a sclass and a type modifier)
+      -- - prototypes: default args, trailing return type, exceptions.
+      -- - initializers (constructor args, braced)
+      -- - user defined literals
    }
    return options.specifierTable
 end
@@ -2434,9 +2469,10 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
 	    name = tok
 	    ti()
-	 elseif tok == '*' or tok == '^' or tok == '&' then --pointer
-	    local block = tok == '^' or nil -- code blocks (apple)
-	    local ref = tok == '&' or nil   -- reference type
+	 elseif tok == '*' or tok == '^'
+	    or tok == '&' or tok == '&&' and options.cplusplus then
+	    local block = tok == '^' or nil                 -- code blocks (apple)
+	    local ref = tok == '&' or tok == '&&' or nil    -- reference type
 	    ti()
 	    local nt, pt
 	    while tok=='const' or tok=='volatile'
@@ -2617,8 +2653,8 @@ local function parseDeclarations(options, globals, tokens, ...)
       while tok and tok ~= '}' do
 	 where = n
 	 local lty, lextra = parseDeclarationSpecifiers(symtable, context)
-	 xassert(lextra.sclass == nil, options, where, 
-                 "storage class '%s' is not allowed here", lextra.sclass)
+	 xassert(lextra.sclass == nil or options.cplusplus and lextra.sclass == 'static',
+		 options, where, "storage class '%s' is not allowed here", lextra.sclass )
 	 if tok == ';' then -- anonymous member
 	    xassert(lty.tag=='Struct' or lty.tag=='Union' , options, where, "empty declaration")
 	    ty[1+#ty] = Pair{lty}
@@ -2636,7 +2672,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 		  local pname, pty = parseDeclarator(lty, lextra, symtable, context)
 		  if pty.tag == 'Array' and not pty.size then
 		     xwarning(options, where, "unsized arrays are not allowed here (ignoring)")
-		  elseif pty.tag == 'Function' then
+		  elseif pty.tag == 'Function' and not options.cplusplus then
 		     xerror(options, where, "member functions are not allowed in C")
 		  end
 		  if tok == ':' then ti()
