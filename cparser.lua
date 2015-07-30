@@ -138,6 +138,9 @@ end
 -- hack to print any table: print(Node(nn))
 local Node = newTag(nil)   -- luacheck: ignore 211
 
+
+
+
 ---------------------------------------------------
 ---------------------------------------------------
 ---------------------------------------------------
@@ -181,7 +184,15 @@ local function copyOptions(options)
    noptions.dialectAnsi = not noptions.dialectGnu
    noptions.dialectAnsi = noptions.dialectAnsi and not noptions.dialect99
    noptions.dialectAnsi = noptions.dialectAnsi and not noptions.dialect11
+   -- experimental c++ support
+   if dialect:find("%+%+") then
+      noptions.cplusplus = true
+      noptions.dialect11 = true
+      noptions.dialectAnsi = false
+      noptions.dialect99 = false
+   end
    -- return
+   print(Node(noptions))
    return noptions
 end
 
@@ -1416,10 +1427,12 @@ local function initialDefines(options)
       sb[1+#sb] = string.format("#endif")
    end
    addDef("__STDC__", "1")
-   local stdc = "199409L"
-   if options.dialect11 then stdc = "201112L" end
-   if options.dialect99 then stdc = "199901L" end
-   addDef("__STDC_VERSION__", stdc)
+   if not options.cplusplus then 
+      local stdc = "199409L"
+      if options.dialect11 then stdc = "201112L" end
+      if options.dialect99 then stdc = "199901L" end
+      addDef("__STDC_VERSION__", stdc) 
+   end
    if options.dialectGnu then
       addDef("__GNUC__", 4)
       addDef("__GNUC_MINOR__", 2)
@@ -2112,6 +2125,8 @@ local function getSpecifierTable(options)
       _Noreturn     = options.dialect11 and "attr",
       _Thread_local = options.dialect11 and "attr",
       -- c++ (work-in-progress)
+      auto          = options.cplusplus and "type" or "sclass",
+      asm           = options.dialectGnu or options.cplusplus and "attr",
       char16_t      = options.cplusplus and "type",
       char32_t      = options.cplusplus and "type",
       class         = options.cplusplus and "struct",
@@ -2334,8 +2349,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 
    -- appends attributes to table
    local function isAttribute()
-      return specifierTable[tok]=='attr' or 
-         options.dialect11 and tok=='[' and ti(1)=='['
+      return specifierTable[tok] == 'attr' or
+         options.dialect11 and tok == '[' and ti(1) == '['
    end
    local function collectAttributes(arr)
       while isAttribute() do
@@ -2399,7 +2414,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 elseif nn.complex then
 	    xwarning(options, n, "_Complex used without a type, assuming 'double'")
 	    nn.type = 'double'
-	 elseif nn.sclass then
+	 elseif nn.sclass and not options.cplusplus then
 	    xwarning(options, n, "missing type specifier defaults to 'int'")
 	    nn.type = 'int'
 	 else
@@ -2469,8 +2484,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
 	    name = tok
 	    ti()
-	 elseif tok == '*' or tok == '^'
-	    or tok == '&' or tok == '&&' and options.cplusplus then
+	 elseif tok == '*' or tok == '^' or tok == '&' 
+                or tok == '&&' and options.cplusplus then
 	    local block = tok == '^' or nil                 -- code blocks (apple)
 	    local ref = tok == '&' or tok == '&&' or nil    -- reference type
 	    ti()
