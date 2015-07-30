@@ -70,6 +70,10 @@ knownIncludeQuirks["<iso646.h>"] = { -- c++
    "#define or_eq |=", "#define xor ^", "#define xor_eq ^="
 }
 
+knownIncludeQuirks["<assert.h>"] = { -- c++
+   "#ifndef static_assert", "#define static_assert _Static_assert", "#endif"
+}
+
 
 ---------------------------------------------------
 ---------------------------------------------------
@@ -192,7 +196,6 @@ local function copyOptions(options)
       noptions.dialect99 = false
    end
    -- return
-   print(Node(noptions))
    return noptions
 end
 
@@ -1719,10 +1722,10 @@ local Function = newTag('Function')
 
 -- This function creates a qualified variant of a type.
 
-local function addQualifier(ty, q)
-   assert(q=='const' or q=='volatile' or q=='restrict')
+local function addQualifier(ty, q, val)
+   assert(q=='const' or q=='volatile' or q=='restrict' or q=='linkage')
    if ty.Tag ~= 'Qualified' then ty = Qualified{t=ty} end
-   ty[q] = true
+   ty[q] = val or true
    return ty
 end
 
@@ -1748,13 +1751,16 @@ local function compareTypes(t1, t2, oki)
       return compareTypes(t1, t2._def, oki)
    elseif t1.tag == 'Qualified' or t2.tag == 'Qualified' then
       if t1.tag ~= 'Qualified' then
-	 return compareTypes(Qualified{t=t1},t2)
+	 return compareTypes(Qualified{t=t1},t2,oki)
       elseif t2.tag ~= 'Qualified' then
-	 return compareTypes(t1,Qualified{t=t2})
+	 return compareTypes(t1,Qualified{t=t2},oki)
       else
 	 if t1.const ~= t2.const then return false end
 	 if t1.volatile ~= t2.volatile then return false end
 	 if t1.restrict ~= t2.restrict then return false end
+	 if t1.linkage ~= t2.linkage then
+	    if t1.linkage and t2.linkage or not oki then
+	       return false end end
 	 if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
 	 return compareTypes(t1.t, t2.t, oki)
       end
@@ -2074,76 +2080,77 @@ end
 
 local function getSpecifierTable(options)
    options.specifierTable = options.specifierTable or {
-      typedef    = 'sclass',
-      extern     = 'sclass',
-      static     = 'sclass',   
-      auto       = 'sclass',
-      register   = 'sclass',
-      void       = 'type',
-      char       = 'type',
-      float      = 'type',
-      int        = 'type',
-      double     = 'type',
-      short      = 'size',
-      long       = 'size',
-      signed     = 'sign',
-      unsigned   = 'sign',
-      const      = 'const',
-      volatile   = 'volatile',
-      struct        = 'struct',
-      union         = 'struct',
-      enum          = 'enum',
-      __inline__    = 'inline',     -- gnu
-      __asm__       = 'attr',       -- gnu
-      __restrict__  = 'restrict',   -- gnu
-      __attribute__ = 'attr',       -- gnu
-      __extension__ = 'extension',  -- gnu
-      __pragma      = 'attr',       -- msvc
-      __asm         = 'attr',       -- msvc
-      __declspec    = 'attr',       -- msvc
-      __restrict    = 'restrict',   -- msvc
-      __inline      = 'inline',     -- msvc
-      __forceinline = 'inline',     -- msvc
-      __cdecl       = 'attr',       -- msvc
-      __fastcall    = 'attr',       -- msvc
-      __stdcall     = 'attr',       -- msvc
-      __based       = 'attr',       -- msvc
-      __int8        = 'type',       -- msvc
-      __int16       = 'type',       -- msvc
-      __int32       = 'type',       -- msvc
-      __int64       = 'type',       -- msvc
-      _Bool         = not options.dialectAnsi and 'type',
-      restrict      = not options.dialectAnsi and 'restrict',
-      _Complex      = not options.dialectAnsi and 'complex',
-      _Imaginary    = not options.dialectAnsi and 'complex',
-      _Atomic       = not options.dialectAnsi and 'atomic',
-      inline        = not options.dialectAnsi and 'inline',
-      _Pragma       = not options.dialectAnsi and "attr",
-      __thread      = options.dialectGnu and "attr",
-      asm           = options.dialectGnu and "attr",
-      _Alignas      = options.dialect11 and "attr",
-      _Noreturn     = options.dialect11 and "attr",
-      _Thread_local = options.dialect11 and "attr",
+      typedef        = 'sclass',
+      extern         = 'sclass',
+      static         = 'sclass',   
+      auto           = 'sclass',
+      register       = 'sclass',
+      void           = 'type',
+      char           = 'type',
+      float          = 'type',
+      int            = 'type',
+      double         = 'type',
+      short          = 'size',
+      long           = 'size',
+      signed         = 'sign',
+      unsigned       = 'sign',
+      const          = 'const',
+      volatile       = 'volatile',
+      struct         = 'struct',
+      union          = 'struct',
+      enum           = 'enum',
+      __inline__     = 'inline',     -- gnu
+      __asm__        = 'attr',       -- gnu
+      __restrict__   = 'restrict',   -- gnu
+      __attribute__  = 'attr',       -- gnu
+      __extension__  = 'extension',  -- gnu
+      __pragma       = 'attr',       -- msvc
+      __asm          = 'attr',       -- msvc
+      __declspec     = 'attr',       -- msvc
+      __restrict     = 'restrict',   -- msvc
+      __inline       = 'inline',     -- msvc
+      __forceinline  = 'inline',     -- msvc
+      __cdecl        = 'attr',       -- msvc
+      __fastcall     = 'attr',       -- msvc
+      __stdcall      = 'attr',       -- msvc
+      __based        = 'attr',       -- msvc
+      __int8         = 'type',       -- msvc
+      __int16        = 'type',       -- msvc
+      __int32        = 'type',       -- msvc
+      __int64        = 'type',       -- msvc
+      _Bool          = not options.dialectAnsi and 'type',
+      restrict       = not options.dialectAnsi and 'restrict',
+      _Complex       = not options.dialectAnsi and 'complex',
+      _Imaginary     = not options.dialectAnsi and 'complex',
+      _Atomic        = not options.dialectAnsi and 'atomic',
+      inline         = not options.dialectAnsi and 'inline',
+      _Pragma        = not options.dialectAnsi and "attr",
+      __thread       = options.dialectGnu and "attr",
+      asm            = options.dialectGnu and "attr",
+      _Alignas       = options.dialect11 and "attr",
+      _Noreturn      = options.dialect11 and "attr",
+      _Thread_local  = options.dialect11 and "attr",
+      _Static_assert = options.dialect11 and "ERR:assert",
       -- c++ (work-in-progress)
-      auto          = options.cplusplus and "type" or "sclass",
-      asm           = options.dialectGnu or options.cplusplus and "attr",
-      char16_t      = options.cplusplus and "type",
-      char32_t      = options.cplusplus and "type",
-      class         = options.cplusplus and "struct",
-      thread_local  = options.cplusplus and "attr",
-      alignas       = options.cplusplus and "attr",
-      alignof       = options.cplusplus and "attr",
-      constexpr     = options.cplusplus and "attr",
-      mutable       = options.cplusplus and "sclass",
-      friend        = options.cplusplus and "friend",
-      virtual       = options.cplusplus and "virtual",
-      explicit      = options.cplusplus and "explicit",
-      typename      = options.cplusplus and "typename",
-      operator      = options.cplusplus and "operator",
-      static_assert = options.cplusplus and "SPECIAL",
-      template      = options.cplusplus and "SPECIAL",
-      namespace     = options.cplusplus and "SPECIAL",
-      using         = options.cplusplus and "SPECIAL",
+      auto           = options.cplusplus and "type" or "sclass",
+      asm            = options.dialectGnu or options.cplusplus and "attr",
+      char16_t       = options.cplusplus and "type",
+      char32_t       = options.cplusplus and "type",
+      class          = options.cplusplus and "struct",
+      thread_local   = options.cplusplus and "attr",
+      alignas        = options.cplusplus and "attr",
+      alignof        = options.cplusplus and "attr",
+      constexpr      = options.cplusplus and "attr",
+      mutable        = options.cplusplus and "sclass",
+      friend         = options.cplusplus and "friend",
+      virtual        = options.cplusplus and "virtual",
+      explicit       = options.cplusplus and "explicit",
+      typename       = options.cplusplus and "typename",
+      operator       = options.cplusplus and "operator",
+      static_assert  = options.cplusplus and "ERR:assert",
+      template       = options.cplusplus and "ERR:template",
+      namespace      = options.cplusplus and "ERR:namespace",
+      using          = options.cplusplus and "ERR:using",
       -- things that require type inference (not supported)
       -- - auto in c++
       -- - decltype in c++
@@ -2223,7 +2230,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    -- skip parenthesized expression stating on current token.
-   -- return nil if current token is not a left delimiter.
+   -- return false if current token is not a left delimiter.
    -- new current token immediately follow right delimiter.
    -- optionally record tokens into arr and return arr 
    local function skipPar(arr)
@@ -2242,6 +2249,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 record(arr) ti()
 	 return arr
       end
+      return false
    end
    
    -- skip balanced tokens until reaching token s1 or s2 or s2.
@@ -2262,7 +2270,7 @@ local function parseDeclarations(options, globals, tokens, ...)
    -- Argument <where> is the file/line of the declaration.
    -- Argument <symtable> is the current symbol table.
    -- Argument <context> is 'global', 'param', 'local'
-   local function processDeclaration(where, symtable, context, name, ty, sclass, init)
+   local function processDeclaration(where, symtable, context, name, ty, sclass, init, linkage)
       local dcl
       -- handle type definitions
       if sclass == 'typedef' or sclass == '[typetag]' then
@@ -2273,14 +2281,18 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if context == 'global' then coroutine.yield(dcl) end
 	 return
       end
-      -- handle variable and constants
+      -- handle variables and constants
       if typeIs(ty, 'Function') then
 	 if init then
+	    ty.withoutProto = nil
 	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init}
 	 else
 	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
 	 end
       else
+	 if linkage and sclass ~= 'static' and sclass ~= '[enum]' then
+	    ty = addQualifier(ty, 'linkage', linkage)
+	 end
 	 if sclass == 'extern'
 	    or ty.const and not init and sclass ~= '[enum]'
 	    or ty.tag=='Array' and not ty.size and not init
@@ -2296,39 +2308,43 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    end
 	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
 	 end
-      end
+      end	 
       -- check for duplicate declaration
       local ddcl = dcl
-      if dcl.tag ~= 'TypeDef' then
-	 local odcl = symtable[name]
-	 local samescope = rawget(symtable, name)
-	 -- compare types
-	 if odcl and samescope then
-	    if dcl.tag == 'Definition' and odcl.tag == 'Definition'
-	    or not compareTypes(dcl.type,odcl.type,true) then
-	       xerror(options,where,
-		      "%s of symbol '%s' conflicts with earlier %s at %s",
-		      string.lower(dcl.tag), name,
-		      string.lower(odcl.tag), odcl.where)
-	    end
-	    if odcl.tag == 'Definition' then
-	       ddcl = odcl
-	       compareTypes(ddcl.type, dcl.type, 1)
-	    else
-	       compareTypes(ddcl.type, odcl.type, 1)
-	    end
+      local odcl = symtable[name]
+      local samescope = rawget(symtable, name)
+      -- compare types
+      if odcl and samescope then
+	 if dcl.tag == 'Definition' and odcl.tag == 'Definition'  -- double definition
+	 or not compareTypes(dcl.type,odcl.type,true) then        -- or incompatible types
+	    xerror(options,where,
+		   "%s of symbol '%s' conflicts with earlier %s at %s",
+		   string.lower(dcl.tag), name,
+		   string.lower(odcl.tag), odcl.where)
 	 end
-	 -- compare storage class
-	 if odcl and dcl.sclass ~= odcl.sclass then
-	    if dcl.sclass == 'static' or samescope and odcl.sclass == 'static' then
-	       xerror(options, n, "inconsistent linkage for '%s' (previous at %s)",
-		      name, odcl.where)
-	    end
+	 if odcl.tag == 'Definition' then
+	    ddcl = odcl
+	    compareTypes(ddcl.type, dcl.type, 1)
+	 else
+	    compareTypes(ddcl.type, odcl.type, 1)
 	 end
-	 -- install dcl in symtable and yield global declarations
-	 symtable[name] = ddcl
-	 if context == 'global' then coroutine.yield(dcl) end
+	 local oc = odcl.type.tag == 'Qualified' and odcl.type.linkage
+	 local nc = dcl.type.tag == 'Qualified' and dcl.type.linkage
+	 xassert(not nc or oc == nc, options, n,
+		 "linkage specification for '%s' conflicts with earlier %s at %s",
+		 name, string.lower(odcl.tag), odcl.where)
+	 if oc and not nc then dcl.type = addQualifier(dcl.type, 'linkage', oc) end
       end
+      -- compare storage class
+      if odcl and dcl.sclass ~= odcl.sclass then
+	 if dcl.sclass == 'static' or samescope and odcl.sclass == 'static' then
+	    xerror(options, n, "inconsistent linkage for '%s' (previous at %s)",
+		   name, odcl.where)
+	 end
+      end
+      -- install ddcl in symtable and yield global declaration or definition
+      symtable[name] = ddcl
+      if context == 'global' then coroutine.yield(dcl) end
    end
    
    -- forward declations of parsing functions
@@ -2377,6 +2393,10 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    p = 'type'; ty = parseEnum(symtable, context, abstract, nn)
 	 elseif p == 'struct' then
 	    p = 'type'; ty = parseStruct(symtable, context, abstract, nn)
+	 elseif options.cplusplus and ltok=='extern' and ti(1)=='"C"' then
+	    ti(); nn.linkage="C"; ti()
+	 elseif type(p)=='string' and p:find("^ERR") then
+	    xerror(options, n, "unexpected keyword '%s'", ltok)
 	 elseif p then
             ti()
          elseif isName(tok) then
@@ -2507,7 +2527,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    ti()
 	    local p = specifierTable[tok] or isTypeName(tok) or isAttribute(tok) or tok == ')'
 	    if abstract and p then
-	       ty = parsePrototype(ty,symtable,context,abstract)
+	       ty = parsePrototype(ty,symtable,context,abstract,extra.linkage)
+	       if extra.linkage then ty.t = Qualified{t=ty.t,linkage=extra.linkage} end
 	    else
 	       attr = collectAttributes(attr)
 	       ty = parseRev()
@@ -2519,7 +2540,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 attr = collectAttributes(attr)
 	 while tok == '(' or tok == '[' and ti(1) ~= '[' do
 	    if tok == '(' then ti()
-	       ty = parsePrototype(ty,symtable,context,abstract)
+	       ty = parsePrototype(ty,symtable,context,abstract,extra.linkage)
+	       if extra.linkage then ty.t = Qualified{t=ty.t,linkage=extra.linkage} end
 	       check(")") ti()
 	       ty.attr = collectAttributes(ty.attr)
 	    elseif tok == '[' then -- array
@@ -2558,7 +2580,7 @@ local function parseDeclarations(options, globals, tokens, ...)
          end
       end
       attr = collectAttributes(attr)
-      -- distribute inlines and attributes
+      -- distribute inline and attributes
       if extra.inline then
 	 local tt = ty
 	 while tt and tt.tag ~= 'Function' do tt=tt.t end
@@ -2580,10 +2602,11 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    
    -- We are now ready to parse a declaration in the specified context
-   parseDeclaration = function(symtable, context)
+   parseDeclaration = function(symtable, context, linkage)
       -- parse declaration specifiers
       local where = n
       local lty, lextra = parseDeclarationSpecifiers(symtable,context,false)
+      lextra.linkage = lextra.linkage or linkage
       -- loop over declarators
       if isName(tok) or tok=='*' or tok=='&' or tok == '^' or tok=='(' or tok=='[' then
 	 -- parse declarator
@@ -2593,14 +2616,14 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    local body = skipPar({})
 	    xassert(sclass ~= 'typedef', options, where,
 		    "storage class %s is not adequate for a function definition", sclass)
-	    processDeclaration(where, symtable, context, name, ty, sclass, body)
+	    processDeclaration(where, symtable, context, name, ty, sclass, body, linkage)
 	    return
 	 end
 	 -- process declarators
 	 while true do
 	    if typeIs(ty,'Function') then
 	       if not where then error() end
-	       processDeclaration(where, symtable, context, name, ty, sclass)
+	       processDeclaration(where, symtable, context, name, ty, sclass, nil, linkage)
 	    else
 	       local init
 	       if tok == '=' then
@@ -2608,7 +2631,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 		  ti()
 		  init = skipTo({}, specifierTable, ';', ',')
 	       end
-	       processDeclaration(where, symtable, context, name, ty, sclass, init)
+	       processDeclaration(where, symtable, context, name, ty, sclass, init, linkage)
 	    end
 	    if tok ~= ',' then break else ti() end
 	    where = n 
@@ -2621,7 +2644,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       check(';') ti()
    end
    
-   parsePrototype = function(rty,symtable,context_,abstract_)
+   parsePrototype = function(rty,symtable,context_,abstract_,linkage)
       local nsymtable = newScope(symtable)
       local ty = Function{t=rty}
       local i=0
@@ -2632,6 +2655,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    ti() check(')')
 	 else
 	    local lty, lextra = parseDeclarationSpecifiers(nsymtable, 'param', true)
+	    lextra.linkage = lextra.linkage or linkage
 	    local pname, pty = parseDeclarator(lty, lextra, nsymtable, 'param', true)
 	    local sty = pty.tag == 'Qualified' and pty.t or pty
 	    if sty.tag == 'Type' and sty.n == 'void' then
@@ -2787,23 +2811,47 @@ local function parseDeclarations(options, globals, tokens, ...)
       end
    end
 
-   -- main
-   if options.stringToType then
-      -- this is used to implement stringToType
+
+   -- implement stringToType
+   local function doStringToType()
       local lty, lextra = parseDeclarationSpecifiers(globals, 'stringToType', true)
       local pname, pty, psclass = parseDeclarator(lty, lextra, globals, 'stringToType', true)
       while tok==';' do ti() end
       xassert(not psclass, options, n, "storage class '%s' is not adequate in this context", psclass)
       xassert(not tok, options, n, "garbage after type declaration")
       return pty, pname
-   else
-      -- main loop
-      while tok do
-	 while tok == ';' do ti() end
-	 processMacroCaptures()
-	 parseDeclaration(globals,"global")
-	 processMacroCaptures()
+   end
+      
+   -- loop over global declarations
+   local function doGlobal(symtable, linkage)
+      while tok == ';' do ti() end
+      processMacroCaptures()
+      local p = specifierTable[tok]
+      if p == 'ERR:assert' then -- static assertion
+	 ti() skipPar()
+      elseif options.cplusplus and p == 'ERR:using' then
+	 xerror(options,n,"keyword '%s' not yet implemented", tok)
+      elseif options.cplusplus and p == 'ERR:namespace' then
+	 xerror(options,n,"keyword '%s' not yet implemented", tok)
+      elseif options.cplusplus and p == 'ERR:template' then
+	 xerror(options,n,"keyword '%s' not yet implemented", tok)
+      elseif options.cplusplus and tok=='extern' and ti(1)=='"C"' and ti(2)=='{' then
+	 local ln = n
+	 ti(); ti(); ti() 
+	 while tok and tok ~= '}' do doGlobal(symtable, "C") end
+	 xassert(tok=='}',options,ln,"unterminated 'extern \"C\" {...}' construct")
+	 ti();
+      else
+	 parseDeclaration(symtable, "global", linkage)
       end
+      processMacroCaptures()
+   end
+   
+   -- main
+   if options.stringToType then
+      return doStringToType()
+   else
+      while tok do doGlobal(globals) end
       return globals
    end
 end
