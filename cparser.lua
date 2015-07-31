@@ -2145,8 +2145,6 @@ local function getSpecifierTable(options)
       friend         = options.cplusplus and "friend",
       virtual        = options.cplusplus and "virtual",
       explicit       = options.cplusplus and "explicit",
-      typename       = options.cplusplus and "typename",
-      operator       = options.cplusplus and "operator",
       static_assert  = options.cplusplus and "ERR:assert",
       template       = options.cplusplus and "ERR:template",
       namespace      = options.cplusplus and "ERR:namespace",
@@ -2160,8 +2158,9 @@ local function getSpecifierTable(options)
       -- - class/structs have member funcs (body, default, delete),
       -- - class/structs have static, access control, friends, using, nesting.
       -- - class/structs have initialized members, final/override, base clauses
-      -- - class/structs have destructors, constructors with : and using.
-      -- - operator overloads
+      -- - class/structs have destructors, constructors,user defined conversions
+      -- - overloads
+      -- - typename
       -- - nested named with operator ::
       -- - namespace (inline,anonynous,extensions,alias)
       -- - extern "C" (both a sclass and a type modifier)
@@ -2400,16 +2399,20 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 elseif p then
             ti()
          elseif isName(tok) then
-	    local tt = isTypeName(symtable, tok)
-	    local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
-	    if not tt then
-               local tok1 = ti(1)
-               local no = not abstract and tok1:find("^[;,[]")
-               if yes and not no then -- assume this is a type name
-		  p = 'type'; ty = namedType(globals, tok); ti()
-               end
-	    elseif yes or tt.tag ~= 'Type' or tt._def then
-	       p = 'type'; ty = tt; ti() -- beware redefinition of inferred types
+	    if options.cplusplus and tok == 'typename' then
+	       xerror(options,n,"keyword typename is not yet implemented")
+	    elseif options.cplusplus and tok == 'operator' then
+	       break
+	    else
+	       local tt = isTypeName(symtable, tok)
+	       local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
+	       if tt and tt._def or tt and yes then
+		  p = 'type'; ty = tt; ti()
+	       elseif yes and not symtable[tok] then
+		  local tok1 = ti(1)
+		  local no = not abstract and tok1:find("^[;,[]")
+		  if not no then p = 'type'; ty = namedType(globals, tok); ti() end
+	       end
 	    end
 	 end
 	 if not p then
@@ -2472,22 +2475,42 @@ local function parseDeclarations(options, globals, tokens, ...)
       -- signal meaningless register storage classes
       local sclass = nn.sclass
       local smsg = "storage class '%s' is not appropriate in this context"
-      if context == 'global' then
-	 xassert(sclass~='register' and sclass~='auto', 
-                 options, n, smsg, sclass)
+      if context == 'global' or context == 'struct' then 
+	 xassert(sclass~='register' and sclass~='auto',
+		 options, n, smsg, sclass)
       elseif context == 'param' then
 	 xassert(sclass~='static' and sclass~='extern' and sclass~='typedef', 
                  options, n, smsg, sclass)
+      end
+      if context ~= 'class' then
+	 xassert(not nn.virtual, options, n, "keyword virtual is not allowed here");
+	 xassert(not nn.explicit, options, n, "keyword explicit is not allowed here");
+	 xassert(not nn.friend, options, n, "keyword friend is not allowed here");
       end
       -- return
       if not ty then ty = namedType(globals, nn.type) end
       if nn.const then ty = addQualifier(ty, 'const') end
       if nn.volatile then ty = addQualifier(ty, 'volatile') end
-      xassert(not nn.restrict, options, n,
-	      "qualifier '%s' is not adequate here", nn.restrict)
+      xassert(not nn.restrict, options, n, "'restrict' is not adequate here")
       return ty, nn
    end
 
+   -- Helper function to handle operator overloads
+   local function cppOperatorName()
+      ti()
+      local s = tok
+      local err = "syntax error in operator overload";
+      xassert(s=='new' or s=='delete' or isPunctuator(s), options, n, err)
+      xassert(not s:find("^[%]%.%?{})@\\;#]"), options, n, err)
+      ti()
+      if s=='[' then xassert(tok==']', options, n, err) ti() s='[]' end
+      if s=='(' then xassert(tok==')', options, n, err) ti() s='()' end
+      if s=='new' or s=='delete' then s = ' ' .. s end
+      if s:find("^ ") and tok=='[' then ti() xassert(tok==']', options, n, err) ti() s = s..'[]' end
+      xassert(tok=='(', options, n, err);
+      return s
+   end
+   
    -- This function parse the right parts and returns the identifier
    -- name, its type, and a storage class. Its arguments are the
    -- outputs of the corresponding <parseDeclarationSpecifier> plus
@@ -2500,7 +2523,10 @@ local function parseDeclarations(options, globals, tokens, ...)
       local name
       local function parseRev()
 	 local ty = nil
-	 if isName(tok) then
+	 if options.cplusplus and tok == 'operator' then
+	    xassert(not name, options, n, "unexpected keyword '%s'", tok)
+	    name = tok .. cppOperatorName()
+	 elseif isName(tok) then
 	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
 	    name = tok
 	    ti()
@@ -2691,7 +2717,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       check('{') ti()
       while tok and tok ~= '}' do
 	 where = n
-	 local lty, lextra = parseDeclarationSpecifiers(symtable, context)
+	 local lty, lextra = parseDeclarationSpecifiers(symtable, "struct")
 	 xassert(lextra.sclass == nil or options.cplusplus and lextra.sclass == 'static',
 		 options, where, "storage class '%s' is not allowed here", lextra.sclass )
 	 if tok == ';' then -- anonymous member
@@ -2708,11 +2734,11 @@ local function parseDeclarations(options, globals, tokens, ...)
 			  "invalid anonymous bitfield size (%s)", v)
 		  ty[1+#ty] = Pair{lty,bitfield=v}
 	       else
-		  local pname, pty = parseDeclarator(lty, lextra, symtable, context)
+		  local pname, pty = parseDeclarator(lty, lextra, symtable, "struct")
 		  if pty.tag == 'Array' and not pty.size then
 		     xwarning(options, where, "unsized arrays are not allowed here (ignoring)")
-		  elseif pty.tag == 'Function' and not options.cplusplus then
-		     xerror(options, where, "member functions are not allowed in C")
+		  elseif pty.tag == 'Function' then
+		     xerror(options, where, "member functions are not allowed here")
 		  end
 		  if tok == ':' then ti()
 		     xassert(lty == pty, options, where, "bitfields must be of integral types")
