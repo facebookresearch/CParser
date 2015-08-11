@@ -1434,11 +1434,16 @@ local function initialDefines(options)
       local stdc = "199409L"
       if options.dialect11 then stdc = "201112L" end
       if options.dialect99 then stdc = "199901L" end
-      addDef("__STDC_VERSION__", stdc) 
+      addDef("__STDC_VERSION__", stdc)
+   else
+      local cpp = "199711L"
+      if options.dialect11 then cpp = "201103L" end
+      addDef("__cplusplus", cpp)
    end
    if options.dialectGnu then
       addDef("__GNUC__", 4)
       addDef("__GNUC_MINOR__", 2)
+      if options.cplusplus then addDef("__GNUG__","1") end
    end
    yieldLines(options, wrap(options, yieldFromArray, sb), "<builtin>")
    -- command line definitions

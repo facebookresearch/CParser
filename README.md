@@ -594,3 +594,25 @@ definition or declaration.
   deletion as `CppEvent{directive="undef",name="s"}`.  Finally,
   `CppEvent{directive="include",name="fspec"}` indicates that an
   include directive was not resolved.
+
+
+
+### Experimental C++ mode (work in progress)
+
+The C++ mode is enabled with option `-std=c++` or `-std=gnu++`.
+In order to accomodate the much more complex C++ semantics,
+several changes must be made to the symbol tables and to the
+tagged structures representing types and declarations.
+
+* Preprocessor symbol `__cplusplus` is always defined in C++ mode.
+  Symbol `__STDC_VERSION__` is not defined in C++ mode.  Symbol
+  `__GNUG__` is only defined in `g++` mode.
+
+* Fake identifiers such as `operator+` are used to represent operator
+  overloads and user-defined conversions.  Fake identifiers such as
+  `~classname` are used to represent class destructors.
+
+* Types with C linkage are represented using the construction
+  `Qualified{linkage="C",t=basetype}`.  External declarations with C
+  linkage are represented by specifying a type with C linkage.
+
