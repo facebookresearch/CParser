@@ -1825,14 +1825,6 @@ local function typeToString(ty, nam)
       if nam:find("^[A-Za-z0-9$_%%]") then nam = ' ' .. nam end
       return word .. nam 
    end
-   local function insertqual(ty,nam)
-      if ty and ty.attr then nam = insertword(initstr(ty.attr),nam) end
-      if ty and ty.restrict then nam = insertword("restrict",nam) end
-      if ty and ty.volatile then nam = insertword("volatile",nam) end
-      if ty and ty.const then nam= insertword("const",nam) end
-      if ty and ty.static then nam= insertword("static",nam) end
-      return nam
-   end
    local function makelist(ty,sep)
       local s = ''
       for i=1,#ty do
@@ -1853,6 +1845,14 @@ local function typeToString(ty, nam)
       end
       return table.concat(s)
    end      
+   local function insertqual(ty,nam)
+      if ty and ty.attr then nam = insertword(initstr(ty.attr),nam) end
+      if ty and ty.restrict then nam = insertword("restrict",nam) end
+      if ty and ty.volatile then nam = insertword("volatile",nam) end
+      if ty and ty.const then nam= insertword("const",nam) end
+      if ty and ty.static then nam= insertword("static",nam) end
+      return nam
+   end
    -- main loop
    while true do
       local qty = nil
@@ -1864,7 +1864,7 @@ local function typeToString(ty, nam)
       end
       if ty.tag == 'Type' then
 	 return insertqual(qty, insertword(ty.n, nam))
-      elseif ty.tag == 'Pointer' and not sz then
+      elseif ty.tag == 'Pointer' then
 	 local star = (ty.block and '^') or (ty.ref and '&') or '*'
 	 nam = star .. insertqual(qty, nam)
 	 ty = ty.t
