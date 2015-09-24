@@ -485,7 +485,9 @@ The following tags are used to represent types.
 
 * `Qualified{t=basetype,...}` is used to represent a qualified variant
   of `basetype`. Fields named `const`, `volatile`, or `restrict` are
-  set to true to represent the applicable type qualifiers.
+  set to true to represent the applicable type qualifiers. When the
+  type appears in function parameters and the base type is a pointer,
+  a field named `static` may contain the guaranteed array size.
 
 * `Pointer{t=basetype}` is used to represent a pointer to an object of
   type `basetype`. This construct may also contains a field

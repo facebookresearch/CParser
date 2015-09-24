@@ -1826,9 +1826,11 @@ local function typeToString(ty, nam)
       return word .. nam 
    end
    local function insertqual(ty,nam)
-      if ty.restrict then nam = insertword("restrict",nam) end
-      if ty.volatile then nam = insertword("volatile",nam) end      
-      if ty.const then nam= insertword("const",nam) end
+      if ty and ty.attr then nam = insertword(initstr(ty.attr),nam) end
+      if ty and ty.restrict then nam = insertword("restrict",nam) end
+      if ty and ty.volatile then nam = insertword("volatile",nam) end
+      if ty and ty.const then nam= insertword("const",nam) end
+      if ty and ty.static then nam= insertword("static",nam) end
       return nam
    end
    local function makelist(ty,sep)
@@ -1853,24 +1855,23 @@ local function typeToString(ty, nam)
    end      
    -- main loop
    while true do
+      local qty = nil
+      while ty.tag == 'Qualified' do
+	 qty = ty ty = ty.t
+      end
+      if qty and qty.static and ty.tag == 'Pointer' then
+	 ty = Array{t=ty.t, size=qty.static}
+      end
       if ty.tag == 'Type' then
-	 return insertword(ty.n, nam)
-      elseif ty.tag == 'Qualified' then
- 	 if ty.t and ty.t.tag == 'Type' then nam = insertword(ty.t.n, nam) end
-	 if ty.attr then nam = insertword(initstr(ty.attr),nam) end
-	 if ty.restrict then nam = insertword("restrict",nam) end
-	 if ty.volatile then nam = insertword("volatile",nam) end      
-	 if ty.const then nam= insertword("const",nam) end
-	 if ty.t and ty.t.tag == 'Type' then ty = nil else ty = ty.t end
-	 if not ty then return nam end
-      elseif ty.tag == 'Pointer' then
+	 return insertqual(qty, insertword(ty.n, nam))
+      elseif ty.tag == 'Pointer' and not sz then
 	 local star = (ty.block and '^') or (ty.ref and '&') or '*'
-	 nam = star .. insertqual(ty, nam)
+	 nam = star .. insertqual(qty, nam)
 	 ty = ty.t
       elseif ty.tag == 'Array' then
-	 if nam:find("^[*^]") then nam = parenthesize(nam) end
 	 local sz = ty.size or ''
-	 nam = nam .. '[' .. tostring(sz) .. ']'
+	 if nam:find("^[*^]") then nam = parenthesize(nam) end
+	 nam = nam .. '[' .. insertqual(qty, tostring(sz)) .. ']'
 	 ty = ty.t
       elseif ty.tag == 'Function' then
 	 if nam:find("^[*^]") then nam = parenthesize(nam) end
@@ -1878,9 +1879,10 @@ local function typeToString(ty, nam)
 	 elseif #ty == 0 then nam = nam .. '(void)'
 	 else nam = nam .. '(' .. makelist(ty,',') .. ')' end
 	 if ty.attr then nam = nam .. initstr(ty.attr) end
+         if qty then nam = nam .. insertqual(qty,'') end
 	 ty = ty.t
       elseif ty.tag == 'Enum' then
-	 local s = 'enum'
+	 local s = insertqual(qty, 'enum')
 	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
 	 if ty.n then s = s .. ' ' .. ty.n end
 	 s = s .. '{'
@@ -1893,10 +1895,10 @@ local function typeToString(ty, nam)
 	 end
 	 return s .. '}' .. nam
       else
-	 local s = string.lower(ty.tag)
+	 local s = insertqual(qty, string.lower(ty.tag))
 	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
 	 if ty.n then s = s .. ' ' .. ty.n end
-	 return s .. '{' .. makelist(ty,';') .. ';}' .. nam
+	 return s .. '{' .. makelist(ty,';') .. ';}' .. nam;
       end
    end
 end
@@ -2472,9 +2474,21 @@ local function parseDeclarations(options, globals, tokens, ...)
 	       check(")") ti()
 	       ty.attr = collectAttributes(ty.attr)
 	    elseif tok == '[' then -- array
+	       ti()
 	       xassert(ty==nil or ty.tag ~= 'Function', options,n,
 		       "functions cannot return arrays (they can return pointers)")
-	       if ti() == ']' then
+	       local nt = nil
+	       while specifierTable[tok] =='restrict' or tok == 'const'
+	       or tok == 'volatile' or options.dialect99 and tok == 'static' do
+		  xassert(ty==nil or ty.tag~='Array', options, n,
+			  "only the outer array indices can contain qualifiers")
+		  xassert(tok~='static' or context=='param', options, n,
+			  "static array qualifiers are only permitted in prototypes")
+		  nt = nt or Qualified{}
+		  nt[specifierTable[tok]] = true
+		  ti()
+	       end
+	       if tok == ']' then
 		  xassert(ty==nil or ty.tag~='Array', options, n,
 			  "only the outer array can be specified without a size")
 		  ty = Array{t=ty}
@@ -2488,6 +2502,15 @@ local function parseDeclarations(options, globals, tokens, ...)
 			  "invalid array size '%s'", v)
 		  check(']') ti()
 		  ty = Array{t=ty, size=v}
+	       end
+	       if nt then
+		  if nt.sclass then
+		     xassert(ty.size, options, n, "static in this context needs an array size")
+		     nt.static = ty.size
+		     nt.sclass = nil
+		  end
+		  nt.t = ty.t
+		  ty.t = nt
 	       end
 	    end
 	 end
@@ -2588,7 +2611,10 @@ local function parseDeclarations(options, globals, tokens, ...)
 		       "void in function parameters must appear first and alone")
 	       return ty
 	    else
-	       if pty.tag == 'Array' then pty = Pointer{t=pty.t} end
+	       if pty.tag == 'Array' then
+		  pty = Pointer{t=pty.t}
+	       elseif pty.tag == 'Qualified' and pty.t.tag == 'Array' then
+		  pty.t = Pointer{t=pty.t.t} end
 	       i = i + 1
 	       local def
 	       if tok == '=' then ti() def=skipTo({}, specifierTable,';',',') end
