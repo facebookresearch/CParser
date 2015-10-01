@@ -2,7 +2,7 @@
 
 This pure Lua module implements (1) a standard compliant C
 preprocessor with a couple useful extensions, and (2) a parser that
-provides a Lua friendly description of all declarations and
+provides a Lua friendly description of all global declarations and
 definitions in a C header or C program file.
 
 The driver program `lcpp` invokes the preprocessor and outputs
