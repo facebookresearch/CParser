@@ -2219,6 +2219,13 @@ local function parseDeclarations(options, globals, tokens, ...)
    end
    local function Type() assert(false) end
    
+   -- unique id generator
+   local unique_int = 0
+   local function unique()
+      unique_int = unique_int + 1
+      return string.format("%s_%05d", options.unique_prefix or "__anon", unique_int)
+   end
+
    -- check that current token is one of the provided token strings
    local function check(s1,s2)
       if tok == s1 then return end
@@ -2752,7 +2759,8 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 xassert(lextra.sclass == nil or options.cplusplus and lextra.sclass == 'static',
 		 options, where, "storage class '%s' is not allowed here", lextra.sclass )
 	 if tok == ';' then -- anonymous member
-	    xassert(lty.tag=='Struct' or lty.tag=='Union' , options, where, "empty declaration")
+	    xassert(lty.tag=='Struct' or lty.tag=='Union' ,
+		    options, where, "empty declaration")
 	    ty[1+#ty] = Pair{lty}
 	 else
 	    while true do
@@ -2794,6 +2802,12 @@ local function parseDeclarations(options, globals, tokens, ...)
       check("}") ti()
       ty.attr = collectAttributes(nn.attr)
       nn.attr = nil
+      -- name anonymous structs or enums (avoiding anonymous unions)
+      if not ttag and tok ~= ';' and hasOption(options,"-Ztag") then
+	 ttag = unique()
+	 tnam = kind .. " " .. ttag
+	 ty.n = ttag
+      end
       -- change tagged type as newtype
       if ttag then
 	 nn.newtype = true
@@ -2846,6 +2860,12 @@ local function parseDeclarations(options, globals, tokens, ...)
       check('}') ti()
       ty.attr = collectAttributes(nn.attr)
       nn.attr = nil
+      -- name anonymous structs or enums
+      if not ttag and hasOption(options,"-Ztag") then
+	 ttag = unique()
+	 tnam = kind .. " " .. ttag
+	 ty.n = ttag
+      end
       -- change tagged type as newtype
       nn.newtype = true
       if ttag then
