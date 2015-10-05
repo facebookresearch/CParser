@@ -272,7 +272,14 @@ options `-Zpass` and `-std=`*dialect*.
    Unlike `lcpp`, program `lcdecl` processes the input file
    with option `-Zpass` off by default. Turning it on will
    just eliminate potentially useful warning messages.
-   
+
+- `-Ztag`
+   This option causes `lcdecl` to treat all structs, unions, and enums
+   as tagged types, possibly using synthetic tags of the form
+   `__anon_XXXXX`. It is assumed that such names are not used anywhere
+   in the parsed program. This is useful for certain code
+   transformation applications.
+
 - `-std=(c|gnu)(89|99|11)`  
    The dialect selection options also control whether the parser
    recognizes keywords introduced by later version of the C standard
