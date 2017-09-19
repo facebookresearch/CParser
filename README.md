@@ -44,7 +44,9 @@ The following options are recognized:
 
 - `-D`*sym*`[=`*val*`]`  
    Define preprocessor symbol `sym` to value `val`.
-   The default value of `val` is `1`
+   The default value of `val` is `1`.
+   Note that it is possible to define function-like symbols
+   with syntax `-Dsym(args)=val`.
 
 - `-U`*sym*   
   Undefine preprocessor symbol `sym`.
@@ -96,7 +98,7 @@ The following options are recognized:
   * Symbols `__STDC__` and `__STDC_VERSION__` are either defined by
     option `-Zcppdef` or take values suitable for the target C
     dialect.
-  * Symbols `__GNUC__` and `__GNUC_MINOR__` are either defined bu
+  * Symbols `__GNUC__` and `__GNUC_MINOR__` are either defined by
     option `-Zcppdef` or are defined to values `4` and `2` if the
     target dialect starts with string `gnu`.
     
