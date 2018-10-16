@@ -1,8 +1,7 @@
+-- Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+--
 -- Lua module to preprocess and parse C declarations.
 -- (Leon Bottou, 2015)
---
--- Copyright (c) 2015-present, Facebook, Inc.
--- All rights reserved.
 --
 -- This source code is licensed under the BSD-style license found in
 -- the LICENSE file in the root directory of this source tree. An
