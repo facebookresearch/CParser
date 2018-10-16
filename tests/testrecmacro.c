@@ -1,4 +1,4 @@
-
+/* Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved */
 
 #defmacro notseq(n)
 # if n > 0 
