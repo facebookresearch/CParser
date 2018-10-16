@@ -1,5 +1,7 @@
 #!/bin/sh
 #
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+#
 # This script compares the outputs of the clang preprocessor
 # and the cparser preprocessor. Other than white-space
 # differences, we expect parity on MacOSX 10.10.

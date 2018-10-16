@@ -1,3 +1,8 @@
+/* Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved */
+
+/* Note: This test file is an excerpt of the C99 standard
+   http://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf */
+
 #define str(s) # s
 #define xstr(s) str(s)
 #define debug(s, t) printf("x" # s "= %d, x" # t "= %s", \
