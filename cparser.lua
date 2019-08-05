@@ -2717,7 +2717,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       if ttag and tok ~= '{' then return namedType(symtable, tnam) end
       -- parse real struct definition
       local i = 1
-      local v,a = 1,0
+      local v,a = 0,0
       local ty = Enum{n=ttag}
       local ity = Qualified{t=namedType(globals, "int"),const=true,_enum=ty}
       local where = n
