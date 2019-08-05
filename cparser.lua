@@ -35,7 +35,7 @@ if DEBUG then pcall(require,'strict') end
 
 -- Sometimes we cannot find system include files but need to know at
 -- least things about them. For instance, certain system include files
--- define alternate forms for keywords. 
+-- define alternate forms for keywords.
 
 local knownIncludeQuirks = {}
 
@@ -283,7 +283,7 @@ end
 local function evalLuaExpression(s)
    assert(type(s)=='string')
    local f = load(string.gmatch(s,".*"))
-   local function r(status,...) 
+   local function r(status,...)
       if status then return ... end end
    return r(pcall(f or error))
 end
@@ -293,20 +293,20 @@ end
 -- try lua53 operators otherwise revert to iterative version
 
 local bit = evalLuaExpression([[
-   local bit = {} 
+   local bit = {}
    function bit.bnot(a) return ~a end
    function bit.bor(a,b) return a | b end
    function bit.band(a,b) return a & b end
    function bit.bxor(a,b) return a ~ b end
    function bit.lshift(a,b) return a < 0 and b < 0 and ~((~a) << b) or a << b end
-   return bit 
+   return bit
 ]])
 
-if not bit then 
+if not bit then
    local function bor(a,b)
       local r, c, d = 0, 1, -1
       while a > 0 or b > 0 or a < -1 or b < -1 do
-	 if a % 2 > 0 or b % 2 > 0 then r = r + c end 
+	 if a % 2 > 0 or b % 2 > 0 then r = r + c end
 	 a, b, c, d = math.floor(a / 2), math.floor(b / 2), c * 2, d * 2 end
       if a < 0 or b < 0 then r = r + d end
       return r end
@@ -385,7 +385,7 @@ end
 ---------------------------------------------------
 ---------------------------------------------------
 ---------------------------------------------------
--- INITIAL PREPROCESSING 
+-- INITIAL PREPROCESSING
 
 
 
@@ -437,7 +437,7 @@ local function eliminateComments(options, lines, ...)
       local inString = false
       local q = s:find("[\'\"\\/]", 1)
       while q ~= nil do
-	 if hasOption(options,"-d:comments") then 
+	 if hasOption(options,"-d:comments") then
 	    xdebug(n, "comment: [%s][%s] %s",s:sub(1,q-1),s:sub(q),inString)
 	 end
 	 local c = s:byte(q)
@@ -494,7 +494,7 @@ local keywordTable = {
    ------ because the main function of this table is to say which
    ------ identifiers cannot be variable names.
 }
-   
+
 local punctuatorTable = {
    "+", "-", "*", "/", "%", "&", "|", "^", ">>", "<<", "~",
    "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", ">>=", "<<=",
@@ -660,7 +660,7 @@ end
 ---------------------------------------------------
 ---------------------------------------------------
 ---------------------------------------------------
--- PREPROCESSING 
+-- PREPROCESSING
 
 
 -- Preprocessing is performed by two coroutines. The first one
@@ -708,7 +708,7 @@ expandMacros = function(options, macros, tokens, ...)
    local prepend = {}
    local function prependToken(s,n)
       table.insert(prepend,{s,n}) end
-   local function prependTokens(pti) 
+   local function prependTokens(pti)
       local pos = 1+#prepend
       for s,n in pti do table.insert(prepend,pos,{s,n}) end end
    local ti = function()
@@ -736,7 +736,7 @@ expandMacros = function(options, macros, tokens, ...)
    local tok,n = ti()
    local ti = function() tok,n=ti() return tok,n end
    -- collect one macro arguments into an array
-   -- stop when reaching a closing parenthesis or a comma 
+   -- stop when reaching a closing parenthesis or a comma
    local function collectArgument(ti, varargs)
       local count = 0
       local tokens = {}
@@ -807,10 +807,10 @@ expandMacros = function(options, macros, tokens, ...)
 	       -- stringification (with the weird quoting rules)
 	       local v = { '\"' }
 	       for _,t in ipairs(uargs[def[j]]) do
-		  if type(t)=='string' then 
+		  if type(t)=='string' then
 		     if t:find("^%s+$") then t = ' ' end
 		     if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
-		     v[1+#v] = t end end 
+		     v[1+#v] = t end end
 	       v[1+#v] = '\"'
 	       coroutine.yield(tableConcat(v), n)
 	       i = j
@@ -915,7 +915,7 @@ expandMacros = function(options, macros, tokens, ...)
 		     coroutine.yield(ls,ln)
 		  end
 	       end
-	       -- recursively reenters preprocessing subroutines in order to handle 
+	       -- recursively reenters preprocessing subroutines in order to handle
                -- preprocessor directives located inside the macro expansion. As a result
                -- we cannot expand macro invocations that extend beyond the macro-expansion.
 	       local nmacros = {}
@@ -965,7 +965,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       [">"] = function(a,b) return a > b and 1 or 0 end,
       ["<"] = function(a,b) return a < b and 1 or 0 end,
       ["=="] = function(a,b) return a == b and 1 or 0 end,
-      ["!="] = function(a,b) return a ~= b and 1 or 0 end,	 
+      ["!="] = function(a,b) return a ~= b and 1 or 0 end,
       ["&"] = function(a,b) return bit.band(a,b) end,
       ["^"] = function(a,b) return bit.bxor(a,b) end,
       ["|"] = function(a,b) return bit.bor(a,b) end,
@@ -1097,7 +1097,7 @@ processDirectives = function(options, macros, lines, ...)
       local captable = hasCaptureTable()
       if captable and record then captable[1+#captable] = record end
    end
-   
+
    -- simple directives
    local function doIgnore()
       if hasOption(options, "-Zpass") then coroutine.yield(s, n) end
@@ -1149,10 +1149,10 @@ processDirectives = function(options, macros, lines, ...)
 	 args = getMacroArguments(ti)
       end
       -- collect definition
-      local def = { tok, args = args }  
+      local def = { tok, args = args }
       while ti(true) do
 	 def[1+#def] = tok
-      end 
+      end
       -- define macro
       if macros[nam] and not tableCompare(def,macros[nam]) then
 	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
@@ -1339,7 +1339,7 @@ processDirectives = function(options, macros, lines, ...)
       ["if"] = doIf, ["ifdef"] = doIfdef, ["ifndef"] = doIfdef,
       ["define"] = doDefine, ["undef"] = doUndef,
       ["defmacro"] = doDefmacro, ["defrecursivemacro"] = doDefmacro,
-      ["endmacro"] = doError, 
+      ["endmacro"] = doError,
       ["include"] = doInclude, ["include_next"] = doInclude,
    }
    -- process current line
@@ -1352,7 +1352,7 @@ processDirectives = function(options, macros, lines, ...)
 	 -- code
 	 coroutine.yield(s, n)
       elseif s:find("^%s*##") and hasOption(options, "-Zpass") then
-	 -- pass 
+	 -- pass
 	 local ns = s:gsub("^(%s*)##","%1#")
 	 coroutine.yield(ns, n)
       else
@@ -1476,16 +1476,16 @@ local function macroToString(macros, name)
    if type(v) == 'table' then
       local dir = 'define'
       if v.recursive and v.lines then
-         dir = 'defrecursivemacro' 
+         dir = 'defrecursivemacro'
       elseif v.lines then
-         dir = 'defmacro' 
+         dir = 'defmacro'
       end
       local arr = {"#", dir, ' ', name }
       if v.args then
 	 arr[1+#arr] = '('
 	 for i,s in ipairs(v.args) do
 	    if i ~= 1 then arr[1+#arr] = ',' end
-	    arr[1+#arr] = s == '__VA_ARGS__' and '...' or s 
+	    arr[1+#arr] = s == '__VA_ARGS__' and '...' or s
 	 end
 	 arr[1+#arr] = ') '
       else
@@ -1819,7 +1819,7 @@ local function typeToString(ty, nam)
    end
    local function insertword(word,nam)
       if nam:find("^[A-Za-z0-9$_%%]") then nam = ' ' .. nam end
-      return word .. nam 
+      return word .. nam
    end
    local function makelist(ty,sep)
       local s = ''
@@ -1840,7 +1840,7 @@ local function typeToString(ty, nam)
 	 s[1+#s] = arr[i]
       end
       return table.concat(s)
-   end      
+   end
    local function insertqual(ty,nam)
       if ty and ty.attr then nam = insertword(initstr(ty.attr),nam) end
       if ty and ty.restrict then nam = insertword("restrict",nam) end
@@ -1885,8 +1885,8 @@ local function typeToString(ty, nam)
 	 for i=1,#ty do
 	    if i > 1 then s = s .. ',' end
 	    s = s .. ty[i][1]
-            if ty[i][2] then 
-               s = s .. '=' .. tostring(ty[i][2]) 
+            if ty[i][2] then
+               s = s .. '=' .. tostring(ty[i][2])
             end
 	 end
 	 return s .. '}' .. nam
@@ -2061,7 +2061,7 @@ local function getSpecifierTable(options)
    options.specifierTable = options.specifierTable or {
       typedef    = 'sclass',
       extern     = 'sclass',
-      static     = 'sclass',   
+      static     = 'sclass',
       auto       = 'sclass',
       register   = 'sclass',
       void       = 'type',
@@ -2121,7 +2121,7 @@ end
 local function parseDeclarations(options, globals, tokens, ...)
    -- see processMacroCaptures around the end of this function
    if type(options.macros) == 'table' then options.macros[1] = {} end
-   
+
    -- define a lookahead token iterator that also ensures that
    -- variables tok,n always contain the current token
    local ti = lookaheadTokenIterator(wrap(options, tokens, ...))
@@ -2153,7 +2153,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       return ty
    end
    local function Type() assert(false) end
-   
+
    -- unique id generator
    local unique_int = 0
    local function unique()
@@ -2171,16 +2171,16 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 xerror(options,n,"expecting '%s' or '%s' but got '%s'", s1, s2, tok)
       end
    end
-   
+
    -- record tokens into array arr if non nil
    local function record(arr)
       if arr then arr[1+#arr]=tok arr[1+#arr]=n end
    end
-   
+
    -- skip parenthesized expression stating on current token.
    -- return nil if current token is not a left delimiter.
    -- new current token immediately follow right delimiter.
-   -- optionally record tokens into arr and return arr 
+   -- optionally record tokens into arr and return arr
    local function skipPar(arr)
       local dleft =  { ["("]=")", ["{"]="}", ["["]="]" }
       local dright = { [")"]=1,   ["}"]=1,   ["]"]=1 }
@@ -2198,11 +2198,11 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 return arr
       end
    end
-   
+
    -- skip balanced tokens until reaching token s1 or s2 or s2.
    -- in addition s1 may be a table whose keys are the stop token.
    -- the new current token immediately follows the stop token.
-   -- optionally records tokens into arr and returns arr. 
+   -- optionally records tokens into arr and returns arr.
    local function skipTo(arr,s1,s2,s3,s4)
       local sn = n
       while tok and tok ~= s1 and tok ~= s2 and tok ~= s3 and tok ~= s4 do
@@ -2212,7 +2212,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       return arr
    end
 
-   
+
    -- processDeclaration.
    -- Argument <where> is the file/line of the declaration.
    -- Argument <symtable> is the current symbol table.
@@ -2285,7 +2285,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 if context == 'global' then coroutine.yield(dcl) end
       end
    end
-   
+
    -- forward declations of parsing functions
    local parseDeclaration
    local parseDeclarationSpecifiers
@@ -2298,13 +2298,13 @@ local function parseDeclarations(options, globals, tokens, ...)
    -- variable to obtain the type specified by the left part.
    -- The left part is called a DeclarationSpecifier
    -- and the right parts are called Declarators.
-   
+
    -- token classification table for speeding up type parsing
    local specifierTable = getSpecifierTable(options)
 
    -- appends attributes to table
    local function isAttribute()
-      return specifierTable[tok]=='attr' or 
+      return specifierTable[tok]=='attr' or
          options.dialect11 and tok=='[' and ti(1)=='['
    end
    local function collectAttributes(arr)
@@ -2315,7 +2315,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       end
       return arr
    end
-   
+
    -- This function parses the left part and returns the type, and a table
    -- containing all the additional information we could collect, namely the
    -- presence of an inline keyword or the tokens associated with
@@ -2408,10 +2408,10 @@ local function parseDeclarations(options, globals, tokens, ...)
       local sclass = nn.sclass
       local smsg = "storage class '%s' is not appropriate in this context"
       if context == 'global' then
-	 xassert(sclass~='register' and sclass~='auto', 
+	 xassert(sclass~='register' and sclass~='auto',
                  options, n, smsg, sclass)
       elseif context == 'param' then
-	 xassert(sclass~='static' and sclass~='extern' and sclass~='typedef', 
+	 xassert(sclass~='static' and sclass~='extern' and sclass~='typedef',
                  options, n, smsg, sclass)
       end
       -- return
@@ -2553,7 +2553,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       xassert(abstract or name, options, n, "an identifier was expected")
       return name, ty, extra.sclass
    end
-   
+
    -- We are now ready to parse a declaration in the specified context
    parseDeclaration = function(symtable, context)
       -- parse declaration specifiers
@@ -2586,7 +2586,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	       processDeclaration(where, symtable, context, name, ty, sclass, init)
 	    end
 	    if tok ~= ',' then break else ti() end
-	    where = n 
+	    where = n
 	    name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
 	 end
       else
@@ -2595,7 +2595,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       -- the end
       check(';') ti()
    end
-   
+
    parsePrototype = function(rty,symtable,context_,abstract_)
       local nsymtable = newScope(symtable)
       local ty = Function{t=rty}
@@ -2629,7 +2629,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       if i == 0 then ty.withoutProto = true end
       return ty
    end
-   
+
    parseStruct = function(symtable, context, abstract_, nn)
       check('struct', 'union')
       local kind = tok ; ti()
@@ -2646,7 +2646,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       while tok and tok ~= '}' do
 	 where = n
 	 local lty, lextra = parseDeclarationSpecifiers(symtable, context)
-	 xassert(lextra.sclass == nil, options, where, 
+	 xassert(lextra.sclass == nil, options, where,
                  "storage class '%s' is not allowed here", lextra.sclass)
 	 if tok == ';' then -- anonymous member
 	    xassert(lty.tag=='Struct' or lty.tag=='Union' ,
@@ -2703,11 +2703,11 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 nn.newtype = true
 	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
 	 return namedType(symtable, tnam)
-      else 
+      else
 	 return ty
       end
    end
-   
+
    parseEnum = function(symtable, context, abstract_, nn)
       local kind = tok ; ti()
       nn.attr = collectAttributes(nn.attr)
@@ -2746,7 +2746,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	 i = i + 1
 	 processDeclaration(n, symtable, context, nam, ity, '[enum]', x)
 	 if tok == ',' then ti() else check(',','}') end
-      until tok == nil or tok == '}' 
+      until tok == nil or tok == '}'
       check('}') ti()
       ty.attr = collectAttributes(nn.attr)
       nn.attr = nil
@@ -2761,7 +2761,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       if ttag then
 	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
 	 return namedType(symtable, tnam)
-      else 
+      else
 	 return ty
       end
    end
@@ -2851,7 +2851,7 @@ local function declarationIterator(options, lines, prefix)
    options.macros = macros
    options.symbols = symbols
    local di = wrap(options,
-		   parseDeclarations, symbols, 
+		   parseDeclarations, symbols,
 		   filterSpaces,
 		   expandMacros, macros,
 		   tokenize,
@@ -2913,5 +2913,3 @@ cparser.stringToType = stringToType
 cparser.declToString = declToString
 
 return cparser
-  
-
