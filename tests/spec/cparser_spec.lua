@@ -12,14 +12,14 @@ describe('cparser', function()
   end
 
   it('should be able to parse an enum', function()
-    local actions = cparser.declarationIterator({}, io.lines('tests/tst7.h'), 'tests/tst7.h')
+    local actions = cparser.declarationIterator({}, io.lines('tests/tstenum.h'), 'tests/tstenum.h')
 
     local actual = get_enum_action(actions)
 
     local expected = {
       tag = 'TypeDef',
       name = 'SomeEnumeration',
-      where = 'tests/tst7.h:1',
+      where = 'tests/tstenum.h:1',
       sclass = 'typedef',
       type = {
         tag = 'Enum',
