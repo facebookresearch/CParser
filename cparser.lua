@@ -779,7 +779,7 @@ expandMacros = function(options, macros, tokens, ...)
 	    nargs[name] = callAndCollect(options, expandMacros, macros, yieldFromArray, arg, nn)
 	 end
       end
-      if def.nva then -- named variadic argument
+      if def.nva then -- named variadic argument (implies dialectGnu)
          nargs[def.nva] = nargs["__VA_ARGS__"]
          nargs[0][def.nva] = nargs[0]["__VA_ARGS__"]
       end
@@ -1138,7 +1138,7 @@ processDirectives = function(options, macros, lines, ...)
       while tok and tok ~= ')' do
 	 local nam = tok
 	 ti()
-         if tok == '...' then nam,nva = tok,nam ; ti() end
+         if options.dialectGnu and tok == '...' then nam,nva = tok,nam ; ti() end
 	 xassert(nam ~= "__VA_ARGS__", options, n, "name __VA_ARGS__ is not allowed here")
 	 xassert(tok == ')' or nam ~= '...', options, n, "ellipsis in argument list must appear last")
 	 xassert(tok == ')' or tok == ',', options, n, "bad " .. msg)
