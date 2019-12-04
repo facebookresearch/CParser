@@ -819,13 +819,15 @@ expandMacros = function(options, macros, tokens, ...)
 	       v[1+#v] = '\"'
 	       coroutine.yield(tableConcat(v), n)
 	       i = j
-            elseif def.nva and def[j]=='##' and def[i]==',' and def[k]==def.nva then
+            elseif def.nva and def[i]==',' and def[j]=='##' and def[k]==def.nva then
                -- named variadic macro argument with ## to signal negative comma (gcc crap)
-               if not nargs[def.nva].negComma then coroutine.yield(def[i], n) end
-               i = j
+               if nargs[def.nva].negComma then i=i+1 end
+               while i < j do coroutine.yield(def[i], n) ; i=i+1 end
 	    elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')' then
                -- __VA_ARGS__ with implied negative comma semantics
-               if not nargs[def[j]].negComma then coroutine.yield(def[i], n) end
+               if nargs[def[j]].negComma then i=i+1 end
+               while i < j do coroutine.yield(def[i], n) ; i=i+1 end
+               i = j-1
 	    elseif def[j]=='##' and def[k] and not inDirective then
 	       -- concatenation
 	       local u = {}
