@@ -1140,7 +1140,7 @@ processDirectives = function(options, macros, lines, ...)
       while tok and tok ~= ')' do
 	 local nam = tok
 	 ti()
-         if options.dialectGnu and tok == '...' then nam,nva = tok,nam ; ti() end
+         if options.dialectGnu and isIdentifier(nam) and tok == '...' then nam,nva=tok,nam ; ti() end
 	 xassert(nam ~= "__VA_ARGS__", options, n, "name __VA_ARGS__ is not allowed here")
 	 xassert(tok == ')' or nam ~= '...', options, n, "ellipsis in argument list must appear last")
 	 xassert(tok == ')' or tok == ',', options, n, "bad " .. msg)
