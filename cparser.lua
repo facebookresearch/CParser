@@ -764,7 +764,8 @@ expandMacros = function(options, macros, tokens, ...)
       return tokens
    end
    -- collects all macro arguments
-   local function collectArguments(ti,args,ntok,nn)
+   local function collectArguments(ti,def,ntok,nn)
+      local args = def.args
       local nargs = { [0]={} }
       if #args == 0 then ti() end
       for _,name in ipairs(args) do
@@ -777,6 +778,10 @@ expandMacros = function(options, macros, tokens, ...)
 	    nargs[0][name] = arg
 	    nargs[name] = callAndCollect(options, expandMacros, macros, yieldFromArray, arg, nn)
 	 end
+      end
+      if def.nva then -- named variadic argument
+         nargs[def.nva] = nargs["__VA_ARGS__"]
+         nargs[0][def.nva] = nargs[0]["__VA_ARGS__"]
       end
       xassert(tok, options, nn, "unterminated arguments for macro '%s'", ntok)
       xassert(tok==')', options, nn, "too many arguments for macro '%s'", ntok)
@@ -814,6 +819,13 @@ expandMacros = function(options, macros, tokens, ...)
 	       v[1+#v] = '\"'
 	       coroutine.yield(tableConcat(v), n)
 	       i = j
+            elseif def.nva and def[j]=='##' and def[i]==',' and def[k]==def.nva then
+               -- named variadic macro argument with ## to signal negative comma (gcc crap)
+               if not nargs[def.nva].negComma then coroutine.yield(def[i], n) end
+               i = j
+	    elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')' then
+               -- __VA_ARGS__ with implied negative comma semantics
+               if not nargs[def[j]].negComma then coroutine.yield(def[i], n) end
 	    elseif def[j]=='##' and def[k] and not inDirective then
 	       -- concatenation
 	       local u = {}
@@ -827,10 +839,6 @@ expandMacros = function(options, macros, tokens, ...)
 		  updateJandK()
 	       end
 	       tokenizeLine(options, tableConcat(u), n, true)
-	    elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')'
-	       and nargs[def[j]].negComma then
-	       -- negative comma
-	       i = j
 	    elseif nargs[def[i]] then
 	       -- substitution
 	       yieldFromArray(options, nargs[def[i]], n)
@@ -877,7 +885,7 @@ expandMacros = function(options, macros, tokens, ...)
 	    if spc then coroutine.yield(' ', n) end
 	    if tok then prependToken(tok,n) end
 	 else
-	    local nargs = collectArguments(ti,def.args,ntok,nn)
+	    local nargs = collectArguments(ti,def,ntok,nn)
 	    if def.lines == nil then
 	       -- single-line function-like macro
 	       prependToken({tag='pop'},n)
@@ -1125,10 +1133,12 @@ processDirectives = function(options, macros, lines, ...)
    local function getMacroArguments(ti)
       local args = {}
       local msg = "argument list in function-like macro"
+      local nva = nil -- named variadic argument
       ti()
       while tok and tok ~= ')' do
 	 local nam = tok
 	 ti()
+         if tok == '...' then nam,nva = tok,nam ; ti() end
 	 xassert(nam ~= "__VA_ARGS__", options, n, "name __VA_ARGS__ is not allowed here")
 	 xassert(tok == ')' or nam ~= '...', options, n, "ellipsis in argument list must appear last")
 	 xassert(tok == ')' or tok == ',', options, n, "bad " .. msg)
@@ -1139,17 +1149,17 @@ processDirectives = function(options, macros, lines, ...)
       end
       xassert(tok == ')', options, n, "unterminated " .. msg)
       ti()
-      return args
+      return args, nva
    end
    local function doDefine(ti)
       xassert(isIdentifier(ti()), options, n, "symbol expected after #define")
-      local nam, args = tok, nil
+      local nam, args, nva = tok, nil, nil
       -- collect arguments
       if ti() == '(' and not spc then
-	 args = getMacroArguments(ti)
+	 args, nva = getMacroArguments(ti)
       end
       -- collect definition
-      local def = { tok, args = args }
+      local def = { tok, args = args, nva = nva }
       while ti(true) do
 	 def[1+#def] = tok
       end
@@ -1206,11 +1216,11 @@ processDirectives = function(options, macros, lines, ...)
       xassert(isIdentifier(ti()), options, n, "symbol expected after #defmacro")
       local nam,nn = tok,n
       xassert(ti()=='(', options, n, "argument list expected in #defmacro")
-      local args = getMacroArguments(ti)
+      local args, nva = getMacroArguments(ti)
       xassert(not tok, options, n, "garbage after argument list in #defmacro")
       -- collect definition
       local lines = {}
-      local def = { args=args, lines=lines, recursive=(dirtok=="defrecursivemacro") }
+      local def = { args=args, nva=nva, lines=lines, recursive=(dirtok=="defrecursivemacro") }
       doMacroLines(lines,"endmacro")
       lines[#lines] = nil
       lines[#lines] = nil
@@ -1485,7 +1495,8 @@ local function macroToString(macros, name)
 	 arr[1+#arr] = '('
 	 for i,s in ipairs(v.args) do
 	    if i ~= 1 then arr[1+#arr] = ',' end
-	    arr[1+#arr] = s == '__VA_ARGS__' and '...' or s
+            if s == '__VA_ARGS__' then s = (v.nva or '') .. '...' end
+	    arr[1+#arr] = s
 	 end
 	 arr[1+#arr] = ') '
       else
