@@ -95,8 +95,9 @@ The following options are recognized:
 
 - `-std=(c|gnu)(89|99|11)`  
   This option selects a C dialect.
-  In the context of the preprocessor, this only impacts
-  the symbols predefined by `lcpp`.
+  In the context of the preprocessor, this impacts
+  the symbols predefined by `lcpp` and potentially enables
+  GCC extensions of the variadic macro definition syntax.
   * Symbol `__CPARSER__` is always defined with value <1>.
   * Symbols `__STDC__` and `__STDC_VERSION__` are either defined by
     option `-Zcppdef` or take values suitable for the target C
