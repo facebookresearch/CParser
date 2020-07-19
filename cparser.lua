@@ -531,6 +531,7 @@ local function isString(tok)
    if type(tok) ~= 'string' then return false end
    return tok:find("^[\'\"]") ~= nil end
 local function isHeaderName(tok)
+   if type(tok) ~= 'string' then return false end
    return tok:find("^\"") or tok:find("^<") and tok:find(">$") end
 local function isPunctuator(tok)
    return type(tok) == 'string' and punctuatorHash[tok] ~= nil end
