@@ -529,7 +529,9 @@ local function isNumber(tok)
    return type(tok) == 'string' and tok:find("^[.0-9]") ~= nil end
 local function isString(tok)
    if type(tok) ~= 'string' then return false end
-   return tok:find("^[\'\"]") ~= nil or tok:find("^<") and tok:find(">$") end
+   return tok:find("^[\'\"]") ~= nil end
+local function isHeaderName(tok)
+   return tok:find("^\"") or tok:find("^<") and tok:find(">$") end
 local function isPunctuator(tok)
    return type(tok) == 'string' and punctuatorHash[tok] ~= nil end
 local function isIdentifier(tok)
@@ -1245,7 +1247,13 @@ processDirectives = function(options, macros, lines, ...)
       local pti = wrap(options, expandMacros, macros, yieldFromIterator, ti)
       local tok = pti()
       while isBlank(tok) do tok=pti() end
-      xassert(isString(tok) and tok:find("^[\"<]"), options, n, "string expected after #include")
+      if tok == '<' then              -- computed include
+         repeat local tok2 = pti()
+           tok = tok .. tostring(tok2)
+         until tok2==nil or tok2=='>' or isNewline(tok2)
+         tok = tok:gsub('%s>$','>')   -- gcc does this 
+      end
+      xassert(isHeaderName(tok), options, n, "malformed header name after #include")
       local ttok = pti()
       while isBlank(ttok) do ttok=pti() end
       if ttok then xwarning(options, n, "garbage after #include directive") end
