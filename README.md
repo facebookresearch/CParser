@@ -431,7 +431,7 @@ to return lines from the file descriptor `filedesc`. You can also use
 `somestring`.
 
 Each successive call of the declaration iterator function returns a Lua
-data structure that represents a declarations, a definition, or certain
+data structure that represents a declaration, a definition, or certain
 preprocessor events.  The format of these data structures is described
 under function `cparser.declToString`.
 
