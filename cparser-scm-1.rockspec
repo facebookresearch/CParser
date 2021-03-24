@@ -1,7 +1,7 @@
 package = 'cparser'
 version = 'scm-1'
 source  = {
-    url    = 'git://github.com/facebookresearch/CParser',
+    url    = 'git://github.com/facebookresearch/cparser',
     tag    = 'scm-1'
 }
 description = {
