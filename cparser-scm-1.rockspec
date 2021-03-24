@@ -2,7 +2,7 @@ package = 'cparser'
 version = 'scm-1'
 source  = {
     url    = 'https://github.com/facebookresearch/CParser',
-    branch = 'master',
+    tag    = 'scm-1'
 }
 description = {
     summary  = 'A compact C preprocessor and declaration parser written in pure Lua',
@@ -10,7 +10,7 @@ description = {
     license  = 'MIT',
 }
 dependencies = {
-    'lua ~> 5.1';
+    'lua >= 5.1';
 }
 build = {
     type = 'builtin',
