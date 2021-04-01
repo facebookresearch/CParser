@@ -2566,7 +2566,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       if attr then
 	 local tt = ty
 	 while tt.tag == 'Pointer' do tt=tt.t end
-	 if tt ~= 'Function' and tt ~= 'Struct' and tt ~= 'Union' then tt = nil end
+	 if tt.tag ~= 'Function' and tt.tag ~= 'Struct' and tt.tag ~= 'Union' then tt = nil end
 	 if tt == nil and ty == 'Qualified' then tt = ty end
 	 if tt == nil then ty=Qualified{t=ty} tt=ty end
 	 if tt then tt.attr = attr end
