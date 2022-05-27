@@ -12,7 +12,7 @@ local string = require 'string'
 local coroutine = require 'coroutine'
 local table = require 'table'
 local io = require 'io'
-
+local inspect=require'inspect'
 -- Lua 5.1 to 5.3 compatibility
 local unpack = unpack or table.unpack
 
@@ -963,7 +963,11 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       ["!"] = function(v) return v == 0 and 1 or 0 end,
       ["~"] = function(v) return bit.bnot(v) end,
       ["+"] = function(v) return v end,
-      ["-"] = function(v) return -v end
+      ["-"] = function(v) return -v end,
+      ["L"] = function(v)
+        xwarning(options,n,'widechar(s): L'..type(v)..':'..v)
+        return v
+      end
    }
    local binaryOps = {
       ["*"] = function(a,b) return a * b end,
@@ -995,7 +999,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       ["&&"] = 9, ["||"] = 10
    }
    -- forward
-   local function evaluate() end
+   local evaluate
    -- unary operations
    local function evalUnary()
       if unaryOps[tok] then
@@ -1007,7 +1011,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
 	 ti(); return v
       elseif tok == 'defined' then -- magic macro should have removed this
 	 xerror(options, n, "syntax error after <defined>")
-      elseif isIdentifier(tok) then
+    elseif isIdentifier(tok) then
          local v = type(resolver) == 'function' and resolver(tok,ti)
 	 ti(); return v or 0
       elseif isNumber(tok) then
@@ -1175,8 +1179,8 @@ processDirectives = function(options, macros, lines, ...)
       macros[nam] = def
       -- debug
       if hasOption(options, "-d:defines") then
-	 if args then args = "(" .. tableConcat(args,",") .. ")" else args = "" end
-	 xdebug(n, "define %s%s = %s", nam, args, tableConcat(def,' '))
+	 if args then args = "(" .. tableConcat(args,",") .. ")"  end
+	 xdebug(n, "define %s%s = %s", nam, args or "", tableConcat(def,' '))
       end
       -- capture integer macro definitions
       if hasCaptureTable() and args == nil then
@@ -2376,7 +2380,7 @@ local function parseDeclarations(options, globals, tokens, ...)
 	    nn[p] = 'long long'
 	 elseif p == 'attr' then
 	    -- nothing
-         elseif p=='type' and nn[p] then
+   elseif p=='type' and nn[p] then
 	    xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
 	 elseif nn[p] then
 	    xerror(options,n,"conflicting type specifiers '%s' and '%s'", nn[p], ltok)
