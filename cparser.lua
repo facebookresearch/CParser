@@ -12,7 +12,7 @@ local string = require 'string'
 local coroutine = require 'coroutine'
 local table = require 'table'
 local io = require 'io'
-local inspect=require'inspect'
+
 -- Lua 5.1 to 5.3 compatibility
 local unpack = unpack or table.unpack
 
@@ -92,31 +92,31 @@ local function newTag(tag)
    -- the printing function
    local function tostr(self)
       local function str(x)
-	 if type(x)=='string' then
-	    return string.format("%q",x):gsub("\\\n","\\n")
-	 elseif type(x)=='table' and not getmetatable(x) then
-	    return "{..}"
-	 else
-	    return tostring(x)
-	 end
+         if type(x)=='string' then
+            return string.format("%q",x):gsub("\\\n","\\n")
+         elseif type(x)=='table' and not getmetatable(x) then
+            return "{..}"
+         else
+            return tostring(x)
+         end
       end
       local p = string.format("%s{", self.tag or "Node")
       local s = {}
       local seqlen = 0
       for i=1,#self do
-	 if self[i] then seqlen=i else break end end
+         if self[i] then seqlen=i else break end end
       for i=1,seqlen do
-	 s[1+#s] = str(self[i]) end
+         s[1+#s] = str(self[i]) end
       for k,v in pairs(self) do
-	 if type(k) == 'number' then
-	    if k<1 or k>seqlen then
-	       s[1+#s] = string.format("[%s]=%s",k,str(v)) end
-	 elseif type(k) ~= 'string' then
-	    s.extra = true
-	 elseif k:find("^_") and type(v)=='table' then
-	    s[1+#s] = string.format("%s={..}",k) -- hidden
-	 elseif k ~= 'tag' then
-	    s[1+#s] = string.format("%s=%s",k,str(v)) end
+         if type(k) == 'number' then
+            if k<1 or k>seqlen then
+               s[1+#s] = string.format("[%s]=%s",k,str(v)) end
+         elseif type(k) ~= 'string' then
+            s.extra = true
+         elseif k:find("^_") and type(v)=='table' then
+            s[1+#s] = string.format("%s={..}",k) -- hidden
+         elseif k ~= 'tag' then
+            s[1+#s] = string.format("%s=%s",k,str(v)) end
       end
       if s.extra then s[1+#s] = "..." end
       return p .. table.concat(s,',') .. '}'
@@ -167,7 +167,7 @@ local function copyOptions(options)
    local dialect = 'gnu99'
    for _,v in ipairs(options) do
       if v:find("^%-std=%s*[^%s]") then
-	 dialect = v:match("^%-std=%s*(.-)%s*$")
+         dialect = v:match("^%-std=%s*(.-)%s*$")
       end
    end
    noptions.dialect = dialect
@@ -241,10 +241,10 @@ local function tableCompare(a,b)
       return true
    elseif type(a) == 'table' and type(b) == 'table' then
       for k,v in pairs(a) do
-	 if not tableCompare(v,b[k]) then return false end
+         if not tableCompare(v,b[k]) then return false end
       end
       for k,v in pairs(b) do
-	 if not tableCompare(a[k],v) then return false end
+         if not tableCompare(a[k],v) then return false end
       end
       return true
    else
@@ -306,8 +306,8 @@ if not bit then
    local function bor(a,b)
       local r, c, d = 0, 1, -1
       while a > 0 or b > 0 or a < -1 or b < -1 do
-	 if a % 2 > 0 or b % 2 > 0 then r = r + c end
-	 a, b, c, d = math.floor(a / 2), math.floor(b / 2), c * 2, d * 2 end
+         if a % 2 > 0 or b % 2 > 0 then r = r + c end
+         a, b, c, d = math.floor(a / 2), math.floor(b / 2), c * 2, d * 2 end
       if a < 0 or b < 0 then r = r + d end
       return r end
    bit = {}
@@ -340,7 +340,7 @@ local function wrap(options, f, ...)
    end
    return function()
       if coroutine.status(c) ~= 'dead' then
-	 return r(coroutine.resume(c))
+         return r(coroutine.resume(c))
       end
    end
 end
@@ -417,8 +417,8 @@ local function joinLines(options, lines, ...)
    local li = wrap(options, lines, ...)
    for s, n in li do
       while type(s) == 'string' and s:find("\\%s*$") do
-	 local t = li() or ""
-	 s = s:gsub("\\%s*$", "") .. t
+         local t = li() or ""
+         s = s:gsub("\\%s*$", "") .. t
       end
       coroutine.yield(s, n)
    end
@@ -437,38 +437,38 @@ local function eliminateComments(options, lines, ...)
       local inString = false
       local q = s:find("[\'\"\\/]", 1)
       while q ~= nil do
-	 if hasOption(options,"-d:comments") then
-	    xdebug(n, "comment: [%s][%s] %s",s:sub(1,q-1),s:sub(q),inString)
-	 end
-	 local c = s:byte(q)
-	 if inString then
-	    if c == 92 then -- \
-	       q = q + 1
-	    elseif c == inString then
-	       inString = false
-	    end
-	 else
-	    if c == 34 or c == 39 then -- " or '
-	       inString = c
-	    elseif c == 47 and s:byte(q+1) == 47 then -- "//"
-	       s = s:sub(1,q-1)
-	    elseif c == 47 and s:byte(q+1) == 42 then -- "/*"
-	       local p = s:find("%*/",q+2)
-	       if p ~= nil then
-		  s = s:sub(1,q-1) .. " " .. s:sub(p+2)
-	       else
-		  s = s:sub(1,q-1)
-		  local ss,pp
-		  repeat
-		     ss = lineIterator()
-		     xassert(ss ~= nil, options, n, "Unterminated comment")
-		     pp = ss:find("%*/")
-		  until pp
-		  s = s .. " " .. ss:sub(pp+2)
-	       end
-	    end
-	 end
-	 q = s:find("[\'\"\\/]", q+1)
+         if hasOption(options,"-d:comments") then
+            xdebug(n, "comment: [%s][%s] %s",s:sub(1,q-1),s:sub(q),inString)
+         end
+         local c = s:byte(q)
+         if inString then
+            if c == 92 then -- \
+               q = q + 1
+            elseif c == inString then
+               inString = false
+            end
+         else
+            if c == 34 or c == 39 then -- " or '
+               inString = c
+            elseif c == 47 and s:byte(q+1) == 47 then -- "//"
+               s = s:sub(1,q-1)
+            elseif c == 47 and s:byte(q+1) == 42 then -- "/*"
+               local p = s:find("%*/",q+2)
+               if p ~= nil then
+                  s = s:sub(1,q-1) .. " " .. s:sub(p+2)
+               else
+                  s = s:sub(1,q-1)
+                  local ss,pp
+                  repeat
+                     ss = lineIterator()
+                     xassert(ss ~= nil, options, n, "Unterminated comment")
+                     pp = ss:find("%*/")
+                  until pp
+                  s = s .. " " .. ss:sub(pp+2)
+               end
+            end
+         end
+         q = s:find("[\'\"\\/]", q+1)
       end
       coroutine.yield(s, n)
       s, n = lineIterator()
@@ -574,68 +574,68 @@ local function tokenizeLine(options, s, n, notNewline)
    local function token()
       local b, l, r
       if hasOption(options, "-d:tokenize") then
-	 xdebug(n, "[%s][%s]",s:sub(1,p-1),s:sub(p))
+         xdebug(n, "[%s][%s]",s:sub(1,p-1),s:sub(p))
       end
       -- space
       l = s:find("[^%s]", p)
       if l == nil then
-	 return nil
+         return nil
       elseif l > p then
-	 p = l
-	 return " ", n
+         p = l
+         return " ", n
       end
       -- identifier
       r = s:match("^[a-zA-Z_$][a-zA-Z0-9_$]*", p)
       if r ~= nil then
-	 p = p + r:len()
-	 return r, n
+         p = p + r:len()
+         return r, n
       end
       -- preprocessor numbers
       r = s:match("^%.?[0-9][0-9a-zA-Z._]*", p)
       if r ~= nil then
-	 l = r:len()
-	 while r:find("[eEpP]$") and s:find("^[-+]", p+l) do
-	    r = r .. s:match("^[-+][0-9a-zA-Z._]*", p+l)
-	    l = r:len()
-	 end
-	 p = p + l
-	 return r, n
+         l = r:len()
+         while r:find("[eEpP]$") and s:find("^[-+]", p+l) do
+            r = r .. s:match("^[-+][0-9a-zA-Z._]*", p+l)
+            l = r:len()
+         end
+         p = p + l
+         return r, n
       end
       -- angle-delimited strings in include directives
       b = s:byte(p)
       if b == 60 and s:find("^%s*#%s*include") then
-	 r = s:match("^<[^>]+>", p)
-	 if r ~= nil then
-	    p = p + r:len()
-	    return r, n
-	 end
+         r = s:match("^<[^>]+>", p)
+         if r ~= nil then
+            p = p + r:len()
+            return r, n
+         end
       end
       -- punctuator
       l = punctuatorHash[b]
       if l ~= nil then
-	 while l > 0 do
-	    r = s:sub(p,p+l-1)
-	    if punctuatorHash[r] then
-	       p = p + l
-	       return r, n
-	    end
-	    l = l - 1
-	 end
+         while l > 0 do
+            r = s:sub(p,p+l-1)
+            if punctuatorHash[r] then
+               p = p + l
+               return r, n
+            end
+            l = l - 1
+         end
       end
       -- string
       if b == 34 or b == 39 then -- quotes
-	 local q = p
-	 repeat
-	    q = s:find("[\'\"\\]", q + 1)
-	    l = s:byte(q)
-	    xassert(q ~= nil, options, n, "Unterminated string or character constant")
-	    if l == 92 then
-	       q = q + 1
-	    end
-	 until l == b
-	 r = s:sub(p,q)
-	 p = q + 1
-	 return r, n
+         local q = p
+         repeat
+            q = s:find("[\'\"\\]", q + 1)
+            l = s:byte(q)
+            xassert(q ~= nil, options, n, "Unterminated string or character constant")
+            if l == 92 then
+               q = q + 1
+            end
+         until l == b
+         r = s:sub(p,q)
+         p = q + 1
+         return r, n
       end
       -- other stuff (we prefer to signal an error here)
       xerror(options, n,"Unrecognized character (%s)", s:sub(p))
@@ -643,7 +643,7 @@ local function tokenizeLine(options, s, n, notNewline)
    -- loop
    if p then
       for tok,tokn in token do
-	 coroutine.yield(tok, tokn)
+         coroutine.yield(tok, tokn)
       end
    end
 end
@@ -721,17 +721,17 @@ expandMacros = function(options, macros, tokens, ...)
    local ti = function()
       local s,n = ti()
       while type(s) == 'table' do
-	 if s.tag == 'push' then
-	    local nmacros = {}
-	    setmetatable(nmacros, {__index=macros})
-	    if s.symb then nmacros[s.symb] = false end
-	    macros = nmacros
-	 elseif s.tag == 'pop' then
-	    local mt = getmetatable(macros)
-	    if mt and mt.__index then macros = mt.__index end
-	 end
-	 coroutine.yield(s,n)
-	 s,n = ti()
+         if s.tag == 'push' then
+            local nmacros = {}
+            setmetatable(nmacros, {__index=macros})
+            if s.symb then nmacros[s.symb] = false end
+            macros = nmacros
+         elseif s.tag == 'pop' then
+            local mt = getmetatable(macros)
+            if mt and mt.__index then macros = mt.__index end
+         end
+         coroutine.yield(s,n)
+         s,n = ti()
       end
       return s,n
    end
@@ -745,24 +745,24 @@ expandMacros = function(options, macros, tokens, ...)
       local tokens = {}
       ti()
       while isSpace(tok) do
-	 tok = ti()
+         tok = ti()
       end
       while tok do
-	 if tok == ')' and count == 0 then
-	    break
-	 elseif tok == ')' then
-	    count = count - 1
-	 elseif tok == '(' then
-	    count = count + 1
-	 elseif tok == ',' and count == 0 and not varargs then
-	    break
-	 end
-	 if isSpace(tok) then tok = " " end
-	 tokens[1+#tokens] = tok
-	 tok = ti()
+         if tok == ')' and count == 0 then
+            break
+         elseif tok == ')' then
+            count = count - 1
+         elseif tok == '(' then
+            count = count + 1
+         elseif tok == ',' and count == 0 and not varargs then
+            break
+         end
+         if isSpace(tok) then tok = " " end
+         tokens[1+#tokens] = tok
+         tok = ti()
       end
       if #tokens > 0 and isSpace(tokens[#tokens]) then
-	 tokens[#tokens] = nil
+         tokens[#tokens] = nil
       end
       return tokens
    end
@@ -772,15 +772,15 @@ expandMacros = function(options, macros, tokens, ...)
       local nargs = { [0]={} }
       if #args == 0 then ti() end
       for _,name in ipairs(args) do
-	 if tok == ')' and name == "__VA_ARGS__" then
-	    nargs[0][name] = { negComma=true }
-	    nargs[name] = { negComma=true }
-	 else
-	    xassert(tok=='(' or tok==',', options, nn, "not enough arguments for macro '%s'", ntok)
-	    local arg = collectArgument(ti, name == "__VA_ARGS__")
-	    nargs[0][name] = arg
-	    nargs[name] = callAndCollect(options, expandMacros, macros, yieldFromArray, arg, nn)
-	 end
+         if tok == ')' and name == "__VA_ARGS__" then
+            nargs[0][name] = { negComma=true }
+            nargs[name] = { negComma=true }
+         else
+            xassert(tok=='(' or tok==',', options, nn, "not enough arguments for macro '%s'", ntok)
+            local arg = collectArgument(ti, name == "__VA_ARGS__")
+            nargs[0][name] = arg
+            nargs[name] = callAndCollect(options, expandMacros, macros, yieldFromArray, arg, nn)
+         end
       end
       if def.nva then -- named variadic argument (implies dialectGnu)
          nargs[def.nva] = nargs["__VA_ARGS__"]
@@ -798,61 +798,61 @@ expandMacros = function(options, macros, tokens, ...)
       -- prepare loop
       local i,j,k = 1,1,1
       while def[i] do
-	 if isBlank(def[i]) then
-	    -- copy blanks
-	    coroutine.yield(def[i], n)
-	 else
-	    -- positions j and k on next non-space tokens
-	    local function updateJandK()
-	       if j <= i then j=i
-		  repeat j=j+1 until def[j] == nil or not isBlank(def[j]) end
-	       if k <= j then k=j
-		  repeat k=k+1 until def[k] == nil or not isBlank(def[k]) end
-	    end
-	    updateJandK()
-	    -- alternatives
-	    if def[i]=='#' and def[j] and nargs[def[j]] then
-	       -- stringification (with the weird quoting rules)
-	       local v = { '\"' }
-	       for _,t in ipairs(uargs[def[j]]) do
-		  if type(t)=='string' then
-		     if t:find("^%s+$") then t = ' ' end
-		     if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
-		     v[1+#v] = t end end
-	       v[1+#v] = '\"'
-	       coroutine.yield(tableConcat(v), n)
-	       i = j
+         if isBlank(def[i]) then
+            -- copy blanks
+            coroutine.yield(def[i], n)
+         else
+            -- positions j and k on next non-space tokens
+            local function updateJandK()
+               if j <= i then j=i
+                  repeat j=j+1 until def[j] == nil or not isBlank(def[j]) end
+               if k <= j then k=j
+                  repeat k=k+1 until def[k] == nil or not isBlank(def[k]) end
+            end
+            updateJandK()
+            -- alternatives
+            if def[i]=='#' and def[j] and nargs[def[j]] then
+               -- stringification (with the weird quoting rules)
+               local v = { '\"' }
+               for _,t in ipairs(uargs[def[j]]) do
+                  if type(t)=='string' then
+                     if t:find("^%s+$") then t = ' ' end
+                     if t:find("^[\'\"]") then t = string.format("%q", t):sub(2,-2) end
+                     v[1+#v] = t end end
+               v[1+#v] = '\"'
+               coroutine.yield(tableConcat(v), n)
+               i = j
             elseif def.nva and def[i]==',' and def[j]=='##' and def[k]==def.nva then
                -- named variadic macro argument with ## to signal negative comma (gcc crap)
                if nargs[def.nva].negComma then i=i+1 end
                while i < j do coroutine.yield(def[i], n) ; i=i+1 end
-	    elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')' then
+            elseif def[i]==',' and def[j]=='__VA_ARGS__' and def[k]==')' then
                -- __VA_ARGS__ with implied negative comma semantics
                if nargs[def[j]].negComma then i=i+1 end
                while i < j do coroutine.yield(def[i], n) ; i=i+1 end
                i = j-1
-	    elseif def[j]=='##' and def[k] and not inDirective then
-	       -- concatenation
-	       local u = {}
-	       local function addToU(s)
-		  if nargs[s] then for _,v in ipairs(uargs[s]) do u[1+#u] = v end
-		  else u[1+#u]=s end end
-	       addToU(def[i])
-	       while def[j] == '##' and def[k] do
-		  addToU(def[k])
-		  i = k
-		  updateJandK()
-	       end
-	       tokenizeLine(options, tableConcat(u), n, true)
-	    elseif nargs[def[i]] then
-	       -- substitution
-	       yieldFromArray(options, nargs[def[i]], n)
-	    else
-	       -- copy
-	       coroutine.yield(def[i], n)
-	    end
-	 end
-	 i = i + 1
+            elseif def[j]=='##' and def[k] and not inDirective then
+               -- concatenation
+               local u = {}
+               local function addToU(s)
+                  if nargs[s] then for _,v in ipairs(uargs[s]) do u[1+#u] = v end
+                  else u[1+#u]=s end end
+               addToU(def[i])
+               while def[j] == '##' and def[k] do
+                  addToU(def[k])
+                  i = k
+                  updateJandK()
+               end
+               tokenizeLine(options, tableConcat(u), n, true)
+            elseif nargs[def[i]] then
+               -- substitution
+               yieldFromArray(options, nargs[def[i]], n)
+            else
+               -- copy
+               coroutine.yield(def[i], n)
+            end
+         end
+         i = i + 1
       end
    end
    -- main loop
@@ -860,85 +860,85 @@ expandMacros = function(options, macros, tokens, ...)
    while tok ~= nil do
       -- detects Zpassed directives
       if newline and tok == '#' then
-	 newline, directive = false, true
+         newline, directive = false, true
       elseif not isBlank(tok) then
-	 newline = false
+         newline = false
       elseif isNewline(tok) then
-	 newline, directive = true, false
+         newline, directive = true, false
       end
       -- process code
       local def = macros[tok]
       if not def or directive then
-	 -- not a macro
-	 coroutine.yield(tok, n)
+         -- not a macro
+         coroutine.yield(tok, n)
       elseif type(def) == 'function' then
-	 -- magic macro
-	 def(ti,tok,n)
+         -- magic macro
+         def(ti,tok,n)
       elseif def.args == nil then
-	 -- object-like macro
-	 prependToken({tag='pop'},n)
-	 prependTokens(wrap(options, substituteArguments, def, {}, n))
-	 prependToken({tag='push', symb=tok},n)
+         -- object-like macro
+         prependToken({tag='pop'},n)
+         prependTokens(wrap(options, substituteArguments, def, {}, n))
+         prependToken({tag='push', symb=tok},n)
       else
-	 -- function-like macro
-	 local ntok, nn = tok,n
-	 local spc = false
-	 ti()
-	 if isSpace(tok) then spc=true ti() end
-	 if (tok ~= '(') then
-	    coroutine.yield(ntok, nn)
-	    if spc then coroutine.yield(' ', n) end
-	    if tok then prependToken(tok,n) end
-	 else
-	    local nargs = collectArguments(ti,def,ntok,nn)
-	    if def.lines == nil then
-	       -- single-line function-like macro
-	       prependToken({tag='pop'},n)
-	       prependTokens(wrap(options, substituteArguments, def, nargs, nn))
-	       prependToken({tag='push', symb=ntok},nn)
-	    else
-	       -- multi-line function-like macro
-	       local lines = def.lines
-	       -- a coroutine that yields the macro definition
-	       local function yieldMacroLines()
-		  local count = 0
-		  for i=1,#lines,2 do
-		     local ls,ln = lines[i], lines[i+1]
-		     -- are we possibly in a cpp directive
-		     local dir = false
-		     if ls[2] and ls[2]:find('^#') then
-			dir = isIdentifier(ls[3]) and ls[3] or ls[4]
-		     end
-		     if dir and nargs[dir] then
-			dir = false      -- leading stringification
-		     elseif dir == 'defmacro' then
-			count = count + 1  -- entering a multiline macto
-		     elseif dir == 'endmacro' then
-			count = count - 1  -- leaving a multiline macro
-		     end
-		     dir = dir or count > 0
-		     -- substitute
-		     ls = callAndCollect(options,substituteArguments,ls,nargs,ln,dir)
-		     -- compute lines (optimize speed by passing body lines as tokens)
-		     local j=1
-		     while isBlank(ls[j]) do j=j+1 end
-		     if ls[j] and ls[j]:find("^#") then -- but not directives
-			ls = ls[1]:sub(2) .. tableConcat(ls, nil, 2)
-		     end
-		     coroutine.yield(ls,ln)
-		  end
-	       end
-	       -- recursively reenters preprocessing subroutines in order to handle
+         -- function-like macro
+         local ntok, nn = tok,n
+         local spc = false
+         ti()
+         if isSpace(tok) then spc=true ti() end
+         if (tok ~= '(') then
+            coroutine.yield(ntok, nn)
+            if spc then coroutine.yield(' ', n) end
+            if tok then prependToken(tok,n) end
+         else
+            local nargs = collectArguments(ti,def,ntok,nn)
+            if def.lines == nil then
+               -- single-line function-like macro
+               prependToken({tag='pop'},n)
+               prependTokens(wrap(options, substituteArguments, def, nargs, nn))
+               prependToken({tag='push', symb=ntok},nn)
+            else
+               -- multi-line function-like macro
+               local lines = def.lines
+               -- a coroutine that yields the macro definition
+               local function yieldMacroLines()
+                  local count = 0
+                  for i=1,#lines,2 do
+                     local ls,ln = lines[i], lines[i+1]
+                     -- are we possibly in a cpp directive
+                     local dir = false
+                     if ls[2] and ls[2]:find('^#') then
+                        dir = isIdentifier(ls[3]) and ls[3] or ls[4]
+                     end
+                     if dir and nargs[dir] then
+                        dir = false      -- leading stringification
+                     elseif dir == 'defmacro' then
+                        count = count + 1  -- entering a multiline macto
+                     elseif dir == 'endmacro' then
+                        count = count - 1  -- leaving a multiline macro
+                     end
+                     dir = dir or count > 0
+                     -- substitute
+                     ls = callAndCollect(options,substituteArguments,ls,nargs,ln,dir)
+                     -- compute lines (optimize speed by passing body lines as tokens)
+                     local j=1
+                     while isBlank(ls[j]) do j=j+1 end
+                     if ls[j] and ls[j]:find("^#") then -- but not directives
+                        ls = ls[1]:sub(2) .. tableConcat(ls, nil, 2)
+                     end
+                     coroutine.yield(ls,ln)
+                  end
+               end
+               -- recursively reenters preprocessing subroutines in order to handle
                -- preprocessor directives located inside the macro expansion. As a result
                -- we cannot expand macro invocations that extend beyond the macro-expansion.
-	       local nmacros = {}
-	       setmetatable(nmacros,{__index=macros})
-	       if not def.recursive then nmacros[ntok]=false end
-	       if not def.recursive then coroutine.yield({tag='push',symb=ntok}) end
-	       expandMacros(options, nmacros, tokenize, processDirectives, nmacros, yieldMacroLines)
-	       if not def.recursive then coroutine.yield({tag='pop'}) end
-	    end
-	 end
+               local nmacros = {}
+               setmetatable(nmacros,{__index=macros})
+               if not def.recursive then nmacros[ntok]=false end
+               if not def.recursive then coroutine.yield({tag='push',symb=ntok}) end
+               expandMacros(options, nmacros, tokenize, processDirectives, nmacros, yieldMacroLines)
+               if not def.recursive then coroutine.yield({tag='pop'}) end
+            end
+         end
       end
       ti()
    end
@@ -964,10 +964,7 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       ["~"] = function(v) return bit.bnot(v) end,
       ["+"] = function(v) return v end,
       ["-"] = function(v) return -v end,
-      ["L"] = function(v)
-        xwarning(options,n,'widechar(s): L'..type(v)..':'..v)
-        return v
-      end
+      ["L"] = function(v) return v end
    }
    local binaryOps = {
       ["*"] = function(a,b) return a * b end,
@@ -999,65 +996,65 @@ local function evaluateCppExpression(options, tokenIterator, n, resolver)
       ["&&"] = 9, ["||"] = 10
    }
    -- forward
-   local evaluate
+   local function evaluate() end
    -- unary operations
    local function evalUnary()
       if unaryOps[tok] then
-	 local op = unaryOps[tok]
-	 ti(); return op(evalUnary())
+         local op = unaryOps[tok]
+         ti(); return op(evalUnary())
       elseif tok == '(' then
-	 ti(); local v = evaluate()
-	 xassert(tok == ')', options, n, "missing closing parenthesis")
-	 ti(); return v
+         ti(); local v = evaluate()
+         xassert(tok == ')', options, n, "missing closing parenthesis")
+         ti(); return v
       elseif tok == 'defined' then -- magic macro should have removed this
-	 xerror(options, n, "syntax error after <defined>")
-    elseif isIdentifier(tok) then
+         xerror(options, n, "syntax error after <defined>")
+      elseif isIdentifier(tok) then
          local v = type(resolver) == 'function' and resolver(tok,ti)
-	 ti(); return v or 0
+         ti(); return v or 0
       elseif isNumber(tok) then
-	 local v = tok:gsub("[ULul]+$","")
-	 if v:find("^0[0-7]+$") then
-	    v = tonumber(v,8) -- octal
-	 elseif v:find("^0[bB][01]+") then
-	    v = tonumber(v:sub(3),2) -- binary
-	 else
-	    v = tonumber(v) -- lua does the rest
-	 end
-	 xassert(v and v == math.floor(v), options, n, "syntax error (invalid integer '%s')", tok)
-	 ti(); return v
+         local v = tok:gsub("[ULul]+$","")
+         if v:find("^0[0-7]+$") then
+            v = tonumber(v,8) -- octal
+         elseif v:find("^0[bB][01]+") then
+            v = tonumber(v:sub(3),2) -- binary
+         else
+            v = tonumber(v) -- lua does the rest
+         end
+         xassert(v and v == math.floor(v), options, n, "syntax error (invalid integer '%s')", tok)
+         ti(); return v
       elseif isString(tok) then
-	 local v = '""'
-	 if tok:find("^'") then -- interpret character constant as number
-	    v = evalLuaExpression(string.format("return string.byte(%s)", tok))
-	    xassert(type(v)=='number', options, n, "syntax error (invalid value '%s')", tok)
-	    ti()
-	 else
-	    while isString(tok) do
-	       xassert(tok:find('^"'), options, n, "syntax error (invalid value '%s')", tok)
-	       v = v:gsub('"$','') .. tok:gsub('^"','')
-	       ti()
-	    end
-	 end
-	 return v
+         local v = '""'
+         if tok:find("^'") then -- interpret character constant as number
+            v = evalLuaExpression(string.format("return string.byte(%s)", tok))
+            xassert(type(v)=='number', options, n, "syntax error (invalid value '%s')", tok)
+            ti()
+         else
+            while isString(tok) do
+               xassert(tok:find('^"'), options, n, "syntax error (invalid value '%s')", tok)
+               v = v:gsub('"$','') .. tok:gsub('^"','')
+               ti()
+            end
+         end
+         return v
       end
       xerror(options, n, "syntax error (invalid value '%s')", tok)
    end
    -- binary operations
    local function evalBinary(p)
       if p == 0 then
-	 return evalUnary()
+         return evalUnary()
       else
-	 local val = evalBinary(p-1)
-	 while binaryPrec[tok] == p do
-	    local op = binaryOps[tok]  ti()
-	    local oval = evalBinary(p-1)
-	    xassert(p==4 or p==5 or type(val)=='number', options, n,
-		    "expression uses arithmetic operators on strings")
-	    xassert(type(val) == type(oval), options, n,
-		    "expression compares numbers and strings")
-	    val = op(val,oval)
-	 end
-	 return val
+         local val = evalBinary(p-1)
+         while binaryPrec[tok] == p do
+            local op = binaryOps[tok]  ti()
+            local oval = evalBinary(p-1)
+            xassert(p==4 or p==5 or type(val)=='number', options, n,
+                    "expression uses arithmetic operators on strings")
+            xassert(type(val) == type(oval), options, n,
+                    "expression compares numbers and strings")
+            val = op(val,oval)
+         end
+         return val
       end
    end
    -- eval ternary conditonal
@@ -1134,7 +1131,7 @@ processDirectives = function(options, macros, lines, ...)
       if ti() then xwarning(options, n, "garbage after #undef directive") end
       if hasOption(options, "-d:defines") then xdebug(n, "undef %s", nam) end
       if hasCaptureTable() and macros[nam] and macros[nam].captured then
-	 addToCaptureTable{directive='undef',name=nam, where=n}
+         addToCaptureTable{directive='undef',name=nam, where=n}
       end
       macros[nam] = false -- false overrides inherited definitions
    end
@@ -1145,16 +1142,16 @@ processDirectives = function(options, macros, lines, ...)
       local nva = nil -- named variadic argument
       ti()
       while tok and tok ~= ')' do
-	 local nam = tok
-	 ti()
+         local nam = tok
+         ti()
          if options.dialectGnu and isIdentifier(nam) and tok == '...' then nam,nva=tok,nam ; ti() end
-	 xassert(nam ~= "__VA_ARGS__", options, n, "name __VA_ARGS__ is not allowed here")
-	 xassert(tok == ')' or nam ~= '...', options, n, "ellipsis in argument list must appear last")
-	 xassert(tok == ')' or tok == ',', options, n, "bad " .. msg)
-	 if tok == ',' then ti() end
-	 if nam == '...' then nam = "__VA_ARGS__" end
-	 xassert(isIdentifier(nam), options, n, "bad " .. msg)
-	 args[1+#args] = nam
+         xassert(nam ~= "__VA_ARGS__", options, n, "name __VA_ARGS__ is not allowed here")
+         xassert(tok == ')' or nam ~= '...', options, n, "ellipsis in argument list must appear last")
+         xassert(tok == ')' or tok == ',', options, n, "bad " .. msg)
+         if tok == ',' then ti() end
+         if nam == '...' then nam = "__VA_ARGS__" end
+         xassert(isIdentifier(nam), options, n, "bad " .. msg)
+         args[1+#args] = nam
       end
       xassert(tok == ')', options, n, "unterminated " .. msg)
       ti()
@@ -1165,33 +1162,33 @@ processDirectives = function(options, macros, lines, ...)
       local nam, args, nva = tok, nil, nil
       -- collect arguments
       if ti() == '(' and not spc then
-	 args, nva = getMacroArguments(ti)
+         args, nva = getMacroArguments(ti)
       end
       -- collect definition
       local def = { tok, args = args, nva = nva }
       while ti(true) do
-	 def[1+#def] = tok
+         def[1+#def] = tok
       end
       -- define macro
       if macros[nam] and not tableCompare(def,macros[nam]) then
-	 xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
+         xwarning(options, n,"redefinition of preprocessor symbol '%s'", nam)
       end
       macros[nam] = def
       -- debug
       if hasOption(options, "-d:defines") then
-	 if args then args = "(" .. tableConcat(args,",") .. ")"  end
-	 xdebug(n, "define %s%s = %s", nam, args or "", tableConcat(def,' '))
+         if args then args = "(" .. tableConcat(args,",") .. ")"  end
+         xdebug(n, "define %s%s = %s", nam, args or "", tableConcat(def,' '))
       end
       -- capture integer macro definitions
       if hasCaptureTable() and args == nil then
-	 local i = 0
-	 local v = callAndCollect(options, expandMacros, macros, yieldFromArray, def, n)
-	 local function ti() i=i+1 return v[i] end
-	 local ss,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
-	 if ss and type(r)=='number' then
-	    def.captured = true
-	    addToCaptureTable{directive='define', name=nam, intval=r, where=n}
-	 end
+         local i = 0
+         local v = callAndCollect(options, expandMacros, macros, yieldFromArray, def, n)
+         local function ti() i=i+1 return v[i] end
+         local ss,r = pcall(evaluateCppExpression,{silent=true}, ti, n, error)
+         if ss and type(r)=='number' then
+            def.captured = true
+            addToCaptureTable{directive='define', name=nam, intval=r, where=n}
+         end
       end
    end
    -- defmacro
@@ -1199,26 +1196,26 @@ processDirectives = function(options, macros, lines, ...)
       xassert(s, options, n, "unterminated macro (missing #%s)", stop)
       local r = type(s) == 'string' and s:match("^%s*#%s*([a-z]+)")
       if r == "endmacro" or r == "endif" then
-	 if s:find(r .. "%s*[^%s]") then
-	    xwarning(options, n, "garbage after #%s directive", r)
-	 end
+         if s:find(r .. "%s*[^%s]") then
+            xwarning(options, n, "garbage after #%s directive", r)
+         end
       end
       return r
    end
    local function doMacroLines(lines, stop)
       while true do
-	 li()
-	 local ss = callAndCollect(options,tokenizeLine,s,n)
-	 if #ss > 0 then lines[1+#lines] = ss ; lines[1+#lines] = n end
-	 local r = checkDirective(stop)
-	 if r == "endmacro" or r == "endif" then
-	    xassert(r == stop, options,n, "unbalanced directives (got #%s instead of #%s)",r,stop)
-	    return r
-	 elseif r=="defmacro" then
-	    doMacroLines(lines,"endmacro")
-	 elseif r == "if" or r == "ifdef" or r == "ifndef" then
-	    doMacroLines(lines,"endif")
-	 end
+         li()
+         local ss = callAndCollect(options,tokenizeLine,s,n)
+         if #ss > 0 then lines[1+#lines] = ss ; lines[1+#lines] = n end
+         local r = checkDirective(stop)
+         if r == "endmacro" or r == "endif" then
+            xassert(r == stop, options,n, "unbalanced directives (got #%s instead of #%s)",r,stop)
+            return r
+         elseif r=="defmacro" then
+            doMacroLines(lines,"endmacro")
+         elseif r == "if" or r == "ifdef" or r == "ifndef" then
+            doMacroLines(lines,"endif")
+         end
       end
    end
    local function doDefmacro(ti)
@@ -1234,15 +1231,15 @@ processDirectives = function(options, macros, lines, ...)
       lines[#lines] = nil
       lines[#lines] = nil
       if hasOption(options,"-d:directives") then
-	 xdebug(n, "directive: #endmacro")
+         xdebug(n, "directive: #endmacro")
       end
       if macros[nam] and not tableCompare(def,macros[nam]) then
-	 xwarning(options, n, "redefinition of preprocessor symbol '%s'", nam)
+         xwarning(options, n, "redefinition of preprocessor symbol '%s'", nam)
       end
       if hasOption(options, "-d:defines") then
-	 xdebug(nn, "defmacro %s(%s) =", nam, tableConcat(args,','))
-	 for i=1,#lines,2 do
-	    xdebug(lines[i+1], "\t%s", tableConcat(lines[i]):gsub("^\n","")) end
+         xdebug(nn, "defmacro %s(%s) =", nam, tableConcat(args,','))
+         for i=1,#lines,2 do
+            xdebug(lines[i+1], "\t%s", tableConcat(lines[i]):gsub("^\n","")) end
       end
       macros[nam] = def
    end
@@ -1268,65 +1265,65 @@ processDirectives = function(options, macros, lines, ...)
       local fname = evalLuaExpression(string.format("return '%s'", tok:sub(2,-2)))
       local pname, fd, fdi
       for i,v in ipairs(options) do
-	 if v == "-I-" then
-	    sys=false
-	 elseif i > min and v:find("^%-I") and not sys then
+         if v == "-I-" then
+            sys=false
+         elseif i > min and v:find("^%-I") and not sys then
             pname = v:match("^%-I%s*(.*)") .. '/' .. fname
-	    fdi, fd = i, io.open(pname, "r")
-	    if fd then break end
-	 end
+            fdi, fd = i, io.open(pname, "r")
+            if fd then break end
+         end
       end
       if fd then
-	 -- include file
-	 if hasOption(options, "-d:include") then xdebug(n, "including %q", pname) end
-	 local savedfdi = options.includedir
-	 options.includedir = fdi -- saved index to implement include_next
-	 processDirectives(options, macros, eliminateComments, joinLines,
-			   yieldLines, fd:lines(), pname)
-	 options.includedir = savedfdi
+         -- include file
+         if hasOption(options, "-d:include") then xdebug(n, "including %q", pname) end
+         local savedfdi = options.includedir
+         options.includedir = fdi -- saved index to implement include_next
+         processDirectives(options, macros, eliminateComments, joinLines,
+                           yieldLines, fd:lines(), pname)
+         options.includedir = savedfdi
       else
-	 -- include file not found
-	 if hasOption(options, "-Zpass") then
-	    coroutine.yield(string.format("#include %s",tok), n)
-	 else
-	    xwarning(options, n, "include directive (%s) was unresolved", tok)
-	 end
-	 -- quirks
-	 if knownIncludeQuirks[tok] then
-	    processDirectives(options, macros, eliminateComments, joinLines,
-			      yieldFromArray, knownIncludeQuirks[tok], n)
-	 end
-	 -- capture
-	 if hasCaptureTable() then
-	    addToCaptureTable{directive='include',name=tok, where=n}
-	 end
+         -- include file not found
+         if hasOption(options, "-Zpass") then
+            coroutine.yield(string.format("#include %s",tok), n)
+         else
+            xwarning(options, n, "include directive (%s) was unresolved", tok)
+         end
+         -- quirks
+         if knownIncludeQuirks[tok] then
+            processDirectives(options, macros, eliminateComments, joinLines,
+                              yieldFromArray, knownIncludeQuirks[tok], n)
+         end
+         -- capture
+         if hasCaptureTable() then
+            addToCaptureTable{directive='include',name=tok, where=n}
+         end
       end
    end
    -- conditionals
    local function doConditionalBranch(execute)
       checkDirective("endif")
       while true do
-	 li()
-	 local r = checkDirective("endif")
-	 if r == "else" or r == "elif" or r == "endif" then
-	    return r
-	 elseif execute then
-	    processLine()
-	 elseif r == "if" or r == "ifdef" or r == "ifndef" then
-	    while doConditionalBranch(false) ~= "endif" do end
-	 end
+         li()
+         local r = checkDirective("endif")
+         if r == "else" or r == "elif" or r == "endif" then
+            return r
+         elseif execute then
+            processLine()
+         elseif r == "if" or r == "ifdef" or r == "ifndef" then
+            while doConditionalBranch(false) ~= "endif" do end
+         end
       end
    end
    local function doConditional(result)
       local r = doConditionalBranch(result)
       if r == 'elif' and not result then
-	 return processLine(true)
+         return processLine(true)
       end
       while r ~= "endif" do
-	 r = doConditionalBranch(not result)
+         r = doConditionalBranch(not result)
       end
       if hasOption(options,"-d:directives") then
-	 xdebug(n, "directive: %s",s:gsub('^%s*',''))
+         xdebug(n, "directive: %s",s:gsub('^%s*',''))
       end
    end
    local function doIfdef(ti)
@@ -1342,14 +1339,14 @@ processDirectives = function(options, macros, lines, ...)
       local nmacros = {}
       setmetatable(nmacros,{__index=macros})
       nmacros['defined'] = function(ti)
-	 local tok,n = ti()
-	 if tok == '(' then tok = ti()
-	    if ti() ~= ')' then tok = nil end end
-	 if isIdentifier(tok) then
-	    coroutine.yield(macros[tok] and "1" or "0", n)
-	 else
-	    coroutine.yield("defined", n) -- error
-	 end
+         local tok,n = ti()
+         if tok == '(' then tok = ti()
+            if ti() ~= ')' then tok = nil end end
+         if isIdentifier(tok) then
+            coroutine.yield(macros[tok] and "1" or "0", n)
+         else
+            coroutine.yield("defined", n) -- error
+         end
       end
       -- evaluate and branch
       local pti = wrap(options, expandMacros, nmacros, yieldFromIterator, ti)
@@ -1370,46 +1367,46 @@ processDirectives = function(options, macros, lines, ...)
    -- process current line
    processLine = function(okElif)
       if type(s) == 'table' then
-	 -- optimization for multiline macros:
-	 -- When s is an an array of precomputed tokens, code is assumed.
-	 coroutine.yield(s, n)
+         -- optimization for multiline macros:
+         -- When s is an an array of precomputed tokens, code is assumed.
+         coroutine.yield(s, n)
       elseif not s:find("^%s*#") then
-	 -- code
-	 coroutine.yield(s, n)
+         -- code
+         coroutine.yield(s, n)
       elseif s:find("^%s*##") and hasOption(options, "-Zpass") then
-	 -- pass
-	 local ns = s:gsub("^(%s*)##","%1#")
-	 coroutine.yield(ns, n)
+         -- pass
+         local ns = s:gsub("^(%s*)##","%1#")
+         coroutine.yield(ns, n)
       else
-	 if hasOption(options, "-d:directives") then
-	    xdebug(n, "directive: %s",s:gsub('^%s*',''))
-	 end
-	 -- tokenize directive
-	 local ti = wrap(options, tokenizeLine, s, n)
-	 -- a token iterator that skips spaces unless told otherwise
-	 local ti = function(keepSpaces)
-	    tok = ti()
-	    spc = isSpace(tok)
-	    while not keepSpaces and isBlank(tok) do
-	       tok = ti()
-	       spc = spc or isSpace(tok)
-	    end
-	    return tok, n
-	 end
-	 -- start parsing directives
-	 ti()
-	 assert(tok=='#' or tok=='##')
-	 if tok == '##' then
-	    xwarning(options, n, "directive starts with ## without -Zpass") end
-	 dirtok = ti()
-	 if isIdentifier(tok) then
-	    local f = directives[dirtok]
-	    if okElif and dirtok == "elif" then f = doIf end
-	    xassert(f, options, n, "unrecognized preprocessor directive #%s", tok)
-	    f(ti)
-	 elseif tok ~= nil then
-	    xerror(options, n, "unrecognized preprocessor directive '#%s'", s:gsub("^%s*",""))
-	 end
+         if hasOption(options, "-d:directives") then
+            xdebug(n, "directive: %s",s:gsub('^%s*',''))
+         end
+         -- tokenize directive
+         local ti = wrap(options, tokenizeLine, s, n)
+         -- a token iterator that skips spaces unless told otherwise
+         local ti = function(keepSpaces)
+            tok = ti()
+            spc = isSpace(tok)
+            while not keepSpaces and isBlank(tok) do
+               tok = ti()
+               spc = spc or isSpace(tok)
+            end
+            return tok, n
+         end
+         -- start parsing directives
+         ti()
+         assert(tok=='#' or tok=='##')
+         if tok == '##' then
+            xwarning(options, n, "directive starts with ## without -Zpass") end
+         dirtok = ti()
+         if isIdentifier(tok) then
+            local f = directives[dirtok]
+            if okElif and dirtok == "elif" then f = doIf end
+            xassert(f, options, n, "unrecognized preprocessor directive #%s", tok)
+            f(ti)
+         elseif tok ~= nil then
+            xerror(options, n, "unrecognized preprocessor directive '#%s'", s:gsub("^%s*",""))
+         end
       end
    end
    -- main loop
@@ -1451,11 +1448,11 @@ local function initialDefines(options)
    for _,v in ipairs(options) do
       local d
       if v:find("^%-D(.*)=") then
-	 d = v:gsub("^%-D%s*(.*)%s*=%s*(.-)%s*$","#define %1 %2")
+         d = v:gsub("^%-D%s*(.*)%s*=%s*(.-)%s*$","#define %1 %2")
       elseif v:find("^%-D") then
-	 d = v:gsub("^%-D%s*(.-)%s*$","#define %1 1")
+         d = v:gsub("^%-D%s*(.-)%s*$","#define %1 1")
       elseif v:find("^%-U") then
-	 d = v:gsub("^%-U%s*(.-)%s*$","#undef %1")
+         d = v:gsub("^%-U%s*(.-)%s*$","#undef %1")
       end
       if d then sc[1+#sc] = d end
    end
@@ -1507,28 +1504,28 @@ local function macroToString(macros, name)
       end
       local arr = {"#", dir, ' ', name }
       if v.args then
-	 arr[1+#arr] = '('
-	 for i,s in ipairs(v.args) do
-	    if i ~= 1 then arr[1+#arr] = ',' end
+         arr[1+#arr] = '('
+         for i,s in ipairs(v.args) do
+            if i ~= 1 then arr[1+#arr] = ',' end
             if s == '__VA_ARGS__' then s = (v.nva or '') .. '...' end
-	    arr[1+#arr] = s
-	 end
-	 arr[1+#arr] = ') '
+            arr[1+#arr] = s
+         end
+         arr[1+#arr] = ') '
       else
-	 arr[1+#arr] = ' '
+         arr[1+#arr] = ' '
       end
       for _,s in ipairs(v) do
-	 arr[1+#arr] = s
+         arr[1+#arr] = s
       end
       if v.lines then
-	 for i = 1, #v.lines, 2 do
-	    local vl = v.lines[i]
-	    arr[1+#arr] = '\n'
-	    if type(vl)=='table' then vl=tableConcat(vl) end
-	    arr[1+#arr] = vl:gsub('^%s?%s?','  '):gsub('^\n','')
-	 end
-	 arr[1+#arr] = '\n'
-	 arr[1+#arr] = "#endmacro"
+         for i = 1, #v.lines, 2 do
+            local vl = v.lines[i]
+            arr[1+#arr] = '\n'
+            if type(vl)=='table' then vl=tableConcat(vl) end
+            arr[1+#arr] = vl:gsub('^%s?%s?','  '):gsub('^\n','')
+         end
+         arr[1+#arr] = '\n'
+         arr[1+#arr] = "#endmacro"
       end
       return tableConcat(arr)
    end
@@ -1556,17 +1553,17 @@ local function filterSpaces(options, tokens, ...)
    while tok do
       -- skip directives
       while isNewline(tok) do
-	 tok,n = ti()
-	 while isBlank(tok) do tok,n = ti() end
-	 if tok == '#' then
-	    while not isNewline(tok) do
-	       tok, n = ti()
-	    end
-	 end
+         tok,n = ti()
+         while isBlank(tok) do tok,n = ti() end
+         if tok == '#' then
+            while not isNewline(tok) do
+               tok, n = ti()
+            end
+         end
       end
       -- output nonspaces
       if not isBlank(tok) then
-	 coroutine.yield(tok, n)
+         coroutine.yield(tok, n)
       end
       tok,n = ti()
    end
@@ -1584,13 +1581,13 @@ local function cppTokenIterator(options, lines, prefix)
    assert(type(prefix)=='string')
    local macros = initialMacros(options)
    local ti = wrap(options,
-		   filterSpaces,
-		   expandMacros, macros,
-		   tokenize,
-		   processDirectives, macros,
-		   eliminateComments,
-		   joinLines,
-		   yieldLines, lines, prefix)
+                   filterSpaces,
+                   expandMacros, macros,
+                   tokenize,
+                   processDirectives, macros,
+                   eliminateComments,
+                   joinLines,
+                   yieldLines, lines, prefix)
    return ti, macros
 end
 
@@ -1604,13 +1601,13 @@ local function preprocessedLines(options, tokens, ...)
       local curn = n
       local curl = {}
       if isNewline(tok) then
-	 curn = n
-	 curl[1+#curl] = tok:sub(2)
-	 tok, n = ti()
+         curn = n
+         curl[1+#curl] = tok:sub(2)
+         tok, n = ti()
       end
       while tok and not isNewline(tok) do
-	 if not isMagic(tok) then curl[1+#curl] = tok end
-	 tok, n = ti()
+         if not isMagic(tok) then curl[1+#curl] = tok end
+         tok, n = ti()
       end
       coroutine.yield(table.concat(curl), curn)
    end
@@ -1633,10 +1630,10 @@ local function cpp(filename, outputfile, options)
    if io.type(outputfile) ~= 'file' then
       assert(type(outputfile) == 'string')
       if outputfile == '-' then
-	 outputfile = io.output()
+         outputfile = io.output()
       else
-	 closeoutputfile = true
-	 outputfile = io.open(outputfile,"w")
+         closeoutputfile = true
+         outputfile = io.open(outputfile,"w")
       end
    end
    assert(io.type(outputfile) == 'file')
@@ -1648,32 +1645,32 @@ local function cpp(filename, outputfile, options)
    local dM = hasOption(options, "-dM")
    local macros = initialMacros(options)
    local li = wrap(options,
-		   preprocessedLines,
-		   expandMacros, macros,
-		   tokenize,
-		   processDirectives, macros,
-		   eliminateComments,
-		   joinLines,
-		   yieldLines, io.lines(filename), filename)
+                   preprocessedLines,
+                   expandMacros, macros,
+                   tokenize,
+                   processDirectives, macros,
+                   eliminateComments,
+                   joinLines,
+                   yieldLines, io.lines(filename), filename)
    -- iterate, inserting line markers
    local lm = hasOption(options,"-Zpass") and "line" or ""
    local cf, cn
    for s,n in li do
       if not dM and s:find("[^%s]") then
-	 local xf, xn
-	 if type(n) == 'number' then
-	    xn = n
-	 elseif type(n) == 'string' then
-	    xf, xn = n:match("^([^:]*).-(%d*)$")
-	    xn = tonumber(xn)
-	 end
-	 if cf ~= xf or cn ~= xn then
-	    cf, cn = xf, xn
-	    outputfile:write(string.format("#%s %d %q\n", lm, cn, cf))
-	 end
-	 outputfile:write(s)
-	 outputfile:write("\n")
-	 cn = cn + 1
+         local xf, xn
+         if type(n) == 'number' then
+            xn = n
+         elseif type(n) == 'string' then
+            xf, xn = n:match("^([^:]*).-(%d*)$")
+            xn = tonumber(xn)
+         end
+         if cf ~= xf or cn ~= xn then
+            cf, cn = xf, xn
+            outputfile:write(string.format("#%s %d %q\n", lm, cn, cf))
+         end
+         outputfile:write(s)
+         outputfile:write("\n")
+         cn = cn + 1
       end
    end
    if dM then
@@ -1757,15 +1754,15 @@ local function compareTypes(t1, t2, oki)
       return compareTypes(t1, t2._def, oki)
    elseif t1.tag == 'Qualified' or t2.tag == 'Qualified' then
       if t1.tag ~= 'Qualified' then
-	 return compareTypes(Qualified{t=t1},t2)
+         return compareTypes(Qualified{t=t1},t2)
       elseif t2.tag ~= 'Qualified' then
-	 return compareTypes(t1,Qualified{t=t2})
+         return compareTypes(t1,Qualified{t=t2})
       else
-	 if t1.const ~= t2.const then return false end
-	 if t1.volatile ~= t2.volatile then return false end
-	 if t1.restrict ~= t2.restrict then return false end
-	 if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
-	 return compareTypes(t1.t, t2.t, oki)
+         if t1.const ~= t2.const then return false end
+         if t1.volatile ~= t2.volatile then return false end
+         if t1.restrict ~= t2.restrict then return false end
+         if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
+         return compareTypes(t1.t, t2.t, oki)
       end
    elseif t1.tag ~= t2.tag then
       return false
@@ -1775,46 +1772,46 @@ local function compareTypes(t1, t2, oki)
       return compareTypes(t1.t, t2.t, oki)
    elseif t1.tag == 'Array' then
       if compareTypes(t1.t, t2.t, oki) then
-	 if t1.size == t2.size then return true end
-	 if t1.size == nil or t2.size == nil then
-	    if oki == 1 and t1.size == nil then t1.size = t2.size end
-	    return oki
-	 end
+         if t1.size == t2.size then return true end
+         if t1.size == nil or t2.size == nil then
+            if oki == 1 and t1.size == nil then t1.size = t2.size end
+            return oki
+         end
       end
    elseif t1.tag == 'Function' then
       if compareTypes(t1.t, t2.t, oki) then
-	 if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
-	 if t1.withoutProto or t2.withoutProto then
-	    if t1.withoutProto and t2.withoutProto then return true end
-	    if oki == 1 and t1.withoutProto then
-	       for i=1,#t2 do t1[i] = t2[i] end
-	       t1.withoutProto = nil
-	    end
-	    return oki
-	 elseif #t1 == #t2 then
-	    for i=1,#t1 do
-	       if t1[i][1] == nil or t2[i][1] == nil then
-		  return t1[i].ellipsis and t2[i].ellipsis
-	       elseif not compareTypes(t1[i][1],t2[i][1],oki) then
-		  return false
-	       end
-	    end
-	    return true
-	 end
+         if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
+         if t1.withoutProto or t2.withoutProto then
+            if t1.withoutProto and t2.withoutProto then return true end
+            if oki == 1 and t1.withoutProto then
+               for i=1,#t2 do t1[i] = t2[i] end
+               t1.withoutProto = nil
+            end
+            return oki
+         elseif #t1 == #t2 then
+            for i=1,#t1 do
+               if t1[i][1] == nil or t2[i][1] == nil then
+                  return t1[i].ellipsis and t2[i].ellipsis
+               elseif not compareTypes(t1[i][1],t2[i][1],oki) then
+                  return false
+               end
+            end
+            return true
+         end
       end
    elseif t1.tag == 'Enum' then
       return false
    elseif #t1 == #t2 then -- struct or union
       for i=1,#t1 do
-	 if t1[i][2] ~= t2[i][2] then return false end
-	 if t1[i].bitfield ~= t2[i].bitfield then return false end
-	 if not compareTypes(t1[i][1],t2[i][1],oki) then return false end
+         if t1[i][2] ~= t2[i][2] then return false end
+         if t1[i].bitfield ~= t2[i].bitfield then return false end
+         if not compareTypes(t1[i][1],t2[i][1],oki) then return false end
       end
       if oki==1 then t1.attr=tableAppend(t1.attr,t2.attr) end
       if t1.n == t2.n then return true end
       if t1.n == nil or t2.n == nil then
-	 if oki == 1 and t1.n == nil then t1.n = t2.n end
-	 return oki
+         if oki == 1 and t1.n == nil then t1.n = t2.n end
+         return oki
       end
    end
    return false
@@ -1850,20 +1847,20 @@ local function typeToString(ty, nam)
    local function makelist(ty,sep)
       local s = ''
       for i=1,#ty do
-	 if i>1 then s = s .. sep end
-	 if ty[i].ellipsis then  s = s .. '...'
-	 else s = s .. typeToString(ty[i][1], ty[i][2] or "") end
-	 if ty[i].bitfield then
-	    s = s .. ':' .. tostring(ty[i].bitfield)
-	 end
+         if i>1 then s = s .. sep end
+         if ty[i].ellipsis then  s = s .. '...'
+         else s = s .. typeToString(ty[i][1], ty[i][2] or "") end
+         if ty[i].bitfield then
+            s = s .. ':' .. tostring(ty[i].bitfield)
+         end
       end
       return s
    end
    local function initstr(arr)
       local s = {}
       for i=1,#arr,2 do
-	 if spaceNeededBetweenTokens(arr[i-2],arr[i]) then s[1+#s] = ' ' end
-	 s[1+#s] = arr[i]
+         if spaceNeededBetweenTokens(arr[i-2],arr[i]) then s[1+#s] = ' ' end
+         s[1+#s] = arr[i]
       end
       return table.concat(s)
    end
@@ -1879,48 +1876,48 @@ local function typeToString(ty, nam)
    while true do
       local qty = nil
       while ty.tag == 'Qualified' do
-	 qty = ty ty = ty.t
+         qty = ty ty = ty.t
       end
       if qty and qty.static and ty.tag == 'Pointer' then
-	 ty = Array{t=ty.t, size=qty.static}
+         ty = Array{t=ty.t, size=qty.static}
       end
       if ty.tag == 'Type' then
-	 return insertqual(qty, insertword(ty.n, nam))
+         return insertqual(qty, insertword(ty.n, nam))
       elseif ty.tag == 'Pointer' then
-	 local star = (ty.block and '^') or (ty.ref and '&') or '*'
-	 nam = star .. insertqual(qty, nam)
-	 ty = ty.t
+         local star = (ty.block and '^') or (ty.ref and '&') or '*'
+         nam = star .. insertqual(qty, nam)
+         ty = ty.t
       elseif ty.tag == 'Array' then
-	 local sz = ty.size or ''
-	 if nam:find("^[*^]") then nam = parenthesize(nam) end
-	 nam = nam .. '[' .. insertqual(qty, tostring(sz)) .. ']'
-	 ty = ty.t
+         local sz = ty.size or ''
+         if nam:find("^[*^]") then nam = parenthesize(nam) end
+         nam = nam .. '[' .. insertqual(qty, tostring(sz)) .. ']'
+         ty = ty.t
       elseif ty.tag == 'Function' then
-	 if nam:find("^[*^]") then nam = parenthesize(nam) end
-	 if #ty == 0 and ty.withoutProto then nam = nam .. '()'
-	 elseif #ty == 0 then nam = nam .. '(void)'
-	 else nam = nam .. '(' .. makelist(ty,',') .. ')' end
-	 if ty.attr then nam = nam .. initstr(ty.attr) end
+         if nam:find("^[*^]") then nam = parenthesize(nam) end
+         if #ty == 0 and ty.withoutProto then nam = nam .. '()'
+         elseif #ty == 0 then nam = nam .. '(void)'
+         else nam = nam .. '(' .. makelist(ty,',') .. ')' end
+         if ty.attr then nam = nam .. initstr(ty.attr) end
          if qty then nam = nam .. insertqual(qty,'') end
-	 ty = ty.t
+         ty = ty.t
       elseif ty.tag == 'Enum' then
-	 local s = insertqual(qty, 'enum')
-	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
-	 if ty.n then s = s .. ' ' .. ty.n end
-	 s = s .. '{'
-	 for i=1,#ty do
-	    if i > 1 then s = s .. ',' end
-	    s = s .. ty[i][1]
+         local s = insertqual(qty, 'enum')
+         if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
+         if ty.n then s = s .. ' ' .. ty.n end
+         s = s .. '{'
+         for i=1,#ty do
+            if i > 1 then s = s .. ',' end
+            s = s .. ty[i][1]
             if ty[i][2] then
                s = s .. '=' .. tostring(ty[i][2])
             end
-	 end
-	 return s .. '}' .. nam
+         end
+         return s .. '}' .. nam
       else
-	 local s = insertqual(qty, string.lower(ty.tag))
-	 if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
-	 if ty.n then s = s .. ' ' .. ty.n end
-	 return s .. '{' .. makelist(ty,';') .. ';}' .. nam;
+         local s = insertqual(qty, string.lower(ty.tag))
+         if ty.attr then s = s .. ' ' .. initstr(ty.attr) end
+         if ty.n then s = s .. ' ' .. ty.n end
+         return s .. '{' .. makelist(ty,';') .. ';}' .. nam;
       end
    end
 end
@@ -1951,27 +1948,27 @@ local function declToString(action)
       local n = (action.sclass == '[typetag]') and "" or action.name
       local s = typeToString(action.type, n)
       if action.type.inline then
-	 s = 'inline' .. ' ' .. s
+         s = 'inline' .. ' ' .. s
       end
       if action.sclass then
-	 s = action.sclass .. ' ' .. s
+         s = action.sclass .. ' ' .. s
       end
       if action.intval then
-	 s = s .. ' = ' .. action.intval
+         s = s .. ' = ' .. action.intval
       elseif action.init and typeIs(action.type, 'Function') then
-	 s = s .. "{..}"
+         s = s .. "{..}"
       elseif action.init then
-	 s = s .. "=.."
+         s = s .. "=.."
       end
       return s
    elseif tag == 'CppEvent' then
       local s = nil
       if action.directive == 'include' then
-	 s = string.format("#include %s", action.name)
+         s = string.format("#include %s", action.name)
       elseif action.directive == 'define' then
-	 s = string.format("#define %s %s", action.name, action.intval)
+         s = string.format("#define %s %s", action.name, action.intval)
       elseif action.directive == 'undef' then
-	 s = string.format("#undef %s", action.name)
+         s = string.format("#undef %s", action.name)
       end
       return s
    end
@@ -2007,23 +2004,23 @@ local function lookaheadTokenIterator(ti)
    local fifo = {}
    return function(arg)
       if not arg then
-	 if fifo[1] then
-	    tok,n = unpack(fifo[1])
-	    table.remove(fifo,1)
-	    return tok,n
-	 else
-	    tok,n = ti()
-	    return tok,n
-	 end
+         if fifo[1] then
+            tok,n = unpack(fifo[1])
+            table.remove(fifo,1)
+            return tok,n
+         else
+            tok,n = ti()
+            return tok,n
+         end
       elseif arg == 0 then
-	 return  tok, n
+         return  tok, n
       elseif arg == -1 then
-	 table.insert(fifo,1,{tok,n})
-	 return  tok, n
+         table.insert(fifo,1,{tok,n})
+         return  tok, n
       else
-	 assert(type(arg)=='number' and arg > 0)
-	 while arg > #fifo do fifo[1+#fifo] = {ti()} end
-	 return unpack(fifo[arg])
+         assert(type(arg)=='number' and arg > 0)
+         while arg > #fifo do fifo[1+#fifo] = {ti()} end
+         return unpack(fifo[arg])
       end
    end
 end
@@ -2054,7 +2051,7 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
    local function rsym(tok)
       local s = symtable and symtable[tok]
       xassert(s and type(s.intval)=='number', {silent=true}, n,
-	      "symbol '%s' does not resolve to a constant integer", s)
+              "symbol '%s' does not resolve to a constant integer", s)
       return s.intval
    end
    local ss,r = pcall(evaluateCppExpression, {silent=true}, ti, n, rsym)
@@ -2064,17 +2061,17 @@ local function tryEvaluateConstantExpression(options, n, arr, symtable)
    local s = {}
    for i=1,#arr,2 do
       if spaceNeededBetweenTokens(arr[i-2],arr[i]) then
-	 s[1+#s] = ' '
+         s[1+#s] = ' '
       end
       if isName(arr[i]) and symtable[arr[i]] and symtable[arr[i]].eval then
-	 s[1+#s] = string.format("(%s)", symtable[arr[i]].eval)
+         s[1+#s] = string.format("(%s)", symtable[arr[i]].eval)
       else
-	 s[1+#s] = arr[i]
+         s[1+#s] = arr[i]
       end
    end
    s = table.concat(s)
    xwarning(options, n, "cparser cannot evaluate '%s' as an integer constant"
-	       .. " and is using the literal expression instead", s)
+               .. " and is using the literal expression instead", s)
    return s, false
 end
 
@@ -2165,14 +2162,14 @@ local function parseDeclarations(options, globals, tokens, ...)
    local function namedType(symtable, nam)
       local ty = symtable[nam]
       if ty and ty.tag == 'Type' then
-	 return ty
+         return ty
       elseif ty and ty.tag ~= 'Type' then
-	 local msg = " previous declaration at %s"
-	 if rawget(symtable,nam) then
-	    xerror(options, n, "type name '%s' conflicts with" .. msg, nam, ty.where)
-	 else
-	    xwarning(options, n, "type name '%s' shadows" .. msg, nam, ty.where)
-	 end
+         local msg = " previous declaration at %s"
+         if rawget(symtable,nam) then
+            xerror(options, n, "type name '%s' conflicts with" .. msg, nam, ty.where)
+         else
+            xwarning(options, n, "type name '%s' shadows" .. msg, nam, ty.where)
+         end
       end
       ty = Type{n=nam}
       symtable[nam] = ty
@@ -2192,9 +2189,9 @@ local function parseDeclarations(options, globals, tokens, ...)
       if tok == s1 then return end
       if tok == s2 then return end
       if not s2 then
-	 xerror(options,n,"expecting '%s' but got '%s'", s1, tok)
+         xerror(options,n,"expecting '%s' but got '%s'", s1, tok)
       else
-	 xerror(options,n,"expecting '%s' or '%s' but got '%s'", s1, s2, tok)
+         xerror(options,n,"expecting '%s' or '%s' but got '%s'", s1, s2, tok)
       end
    end
 
@@ -2212,16 +2209,16 @@ local function parseDeclarations(options, globals, tokens, ...)
       local dright = { [")"]=1,   ["}"]=1,   ["]"]=1 }
       local stok = dleft[tok]
       if stok then
-	 local sn = n
-	 local ltok = tok
-	 record(arr) ti()
-	 while not dright[tok] do
-	    xassert(tok, options, sn, "no matching '%s' for this '%s'", stok, ltok)
-	    if dleft[tok] then skipPar(arr) else record(arr) ti() end
-	 end
-	 xassert(tok==stok, options, n, "expecting '%s' but got '%s'", tok, stok)
-	 record(arr) ti()
-	 return arr
+         local sn = n
+         local ltok = tok
+         record(arr) ti()
+         while not dright[tok] do
+            xassert(tok, options, sn, "no matching '%s' for this '%s'", stok, ltok)
+            if dleft[tok] then skipPar(arr) else record(arr) ti() end
+         end
+         xassert(tok==stok, options, n, "expecting '%s' but got '%s'", tok, stok)
+         record(arr) ti()
+         return arr
       end
    end
 
@@ -2232,8 +2229,8 @@ local function parseDeclarations(options, globals, tokens, ...)
    local function skipTo(arr,s1,s2,s3,s4)
       local sn = n
       while tok and tok ~= s1 and tok ~= s2 and tok ~= s3 and tok ~= s4 do
-	 if type(s1) == 'table' and s1[tok] then break end
-	 if not skipPar(arr) then record(arr) ti() end end
+         if type(s1) == 'table' and s1[tok] then break end
+         if not skipPar(arr) then record(arr) ti() end end
       xassert(tok,options,sn,"unterminated expression")
       return arr
    end
@@ -2247,68 +2244,68 @@ local function parseDeclarations(options, globals, tokens, ...)
       local dcl
       -- handle type definitions
       if sclass == 'typedef' or sclass == '[typetag]' then
-	 local nty = namedType(symtable, name)
-	 nty._def = ty
-	 symtable[name] = nty
-	 dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
-	 if context == 'global' then coroutine.yield(dcl) end
-	 return
+         local nty = namedType(symtable, name)
+         nty._def = ty
+         symtable[name] = nty
+         dcl = TypeDef{name=name,type=ty,where=where,sclass=sclass}
+         if context == 'global' then coroutine.yield(dcl) end
+         return
       end
       -- handle variable and constants
       if typeIs(ty, 'Function') then
-	 if init then
-	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init}
-	 else
-	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
-	 end
+         if init then
+            dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init}
+         else
+            dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
+         end
       else
-	 if sclass == 'extern'
-	    or ty.const and not init and sclass ~= '[enum]'
-	    or ty.tag=='Array' and not ty.size and not init
-	 then
-	    xassert(not init,options,n,"extern declaration cannot have initializers")
-	    dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
-	 else
-	    local v = ty.tag == 'Qualified' and ty.const and init or nil
-	    if type(v) == 'table' then
-	       v = tryEvaluateConstantExpression(options,where,init,symtable)
-	    elseif type(v) == 'number' then -- happens when called from parseEnum
-	       init = {tostring(v), where}
-	    end
-	    dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
-	 end
+         if sclass == 'extern'
+            or ty.const and not init and sclass ~= '[enum]'
+            or ty.tag=='Array' and not ty.size and not init
+         then
+            xassert(not init,options,n,"extern declaration cannot have initializers")
+            dcl = Declaration{name=name,type=ty,sclass=sclass,where=where}
+         else
+            local v = ty.tag == 'Qualified' and ty.const and init or nil
+            if type(v) == 'table' then
+               v = tryEvaluateConstantExpression(options,where,init,symtable)
+            elseif type(v) == 'number' then -- happens when called from parseEnum
+               init = {tostring(v), where}
+            end
+            dcl = Definition{name=name,type=ty,sclass=sclass,where=where,init=init,intval=v}
+         end
       end
       -- check for duplicate declaration
       local ddcl = dcl
       if dcl.tag ~= 'TypeDef' then
-	 local odcl = symtable[name]
-	 local samescope = rawget(symtable, name)
-	 -- compare types
-	 if odcl and samescope then
-	    if dcl.tag == 'Definition' and odcl.tag == 'Definition'
-	    or not compareTypes(dcl.type,odcl.type,true) then
-	       xerror(options,where,
-		      "%s of symbol '%s' conflicts with earlier %s at %s",
-		      string.lower(dcl.tag), name,
-		      string.lower(odcl.tag), odcl.where)
-	    end
-	    if odcl.tag == 'Definition' then
-	       ddcl = odcl
-	       compareTypes(ddcl.type, dcl.type, 1)
-	    else
-	       compareTypes(ddcl.type, odcl.type, 1)
-	    end
-	 end
-	 -- compare storage class
-	 if odcl and dcl.sclass ~= odcl.sclass then
-	    if dcl.sclass == 'static' or samescope and odcl.sclass == 'static' then
-	       xerror(options, n, "inconsistent linkage for '%s' (previous at %s)",
-		      name, odcl.where)
-	    end
-	 end
-	 -- install dcl in symtable and yield global declarations
-	 symtable[name] = ddcl
-	 if context == 'global' then coroutine.yield(dcl) end
+         local odcl = symtable[name]
+         local samescope = rawget(symtable, name)
+         -- compare types
+         if odcl and samescope then
+            if dcl.tag == 'Definition' and odcl.tag == 'Definition'
+            or not compareTypes(dcl.type,odcl.type,true) then
+               xerror(options,where,
+                      "%s of symbol '%s' conflicts with earlier %s at %s",
+                      string.lower(dcl.tag), name,
+                      string.lower(odcl.tag), odcl.where)
+            end
+            if odcl.tag == 'Definition' then
+               ddcl = odcl
+               compareTypes(ddcl.type, dcl.type, 1)
+            else
+               compareTypes(ddcl.type, odcl.type, 1)
+            end
+         end
+         -- compare storage class
+         if odcl and dcl.sclass ~= odcl.sclass then
+            if dcl.sclass == 'static' or samescope and odcl.sclass == 'static' then
+               xerror(options, n, "inconsistent linkage for '%s' (previous at %s)",
+                      name, odcl.where)
+            end
+         end
+         -- install dcl in symtable and yield global declarations
+         symtable[name] = ddcl
+         if context == 'global' then coroutine.yield(dcl) end
       end
    end
 
@@ -2350,77 +2347,77 @@ local function parseDeclarations(options, globals, tokens, ...)
       local ty
       local nn = {}
       while true do
-	 local ltok = tok
-	 local p = specifierTable[tok]
+         local ltok = tok
+         local p = specifierTable[tok]
          if isAttribute() then
-	    p = 'attr'; nn.attr = collectAttributes(nn.attr)
+            p = 'attr'; nn.attr = collectAttributes(nn.attr)
          elseif p == 'enum' then
-	    p = 'type'; ty = parseEnum(symtable, context, abstract, nn)
-	 elseif p == 'struct' then
-	    p = 'type'; ty = parseStruct(symtable, context, abstract, nn)
-	 elseif p then
+            p = 'type'; ty = parseEnum(symtable, context, abstract, nn)
+         elseif p == 'struct' then
+            p = 'type'; ty = parseStruct(symtable, context, abstract, nn)
+         elseif p then
             ti()
          elseif isName(tok) then
-	    local tt = isTypeName(symtable, tok)
-	    local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
-	    if not tt then
+            local tt = isTypeName(symtable, tok)
+            local yes = not nn.type and not nn.size and not nn.sign and not nn.complex
+            if not tt then
                local tok1 = ti(1)
                local no = not abstract and tok1:find("^[;,[]")
                if yes and not no then -- assume this is a type name
-		  p = 'type'; ty = namedType(globals, tok); ti()
+                  p = 'type'; ty = namedType(globals, tok); ti()
                end
-	    elseif yes or tt.tag ~= 'Type' or tt._def then
-	       p = 'type'; ty = tt; ti() -- beware redefinition of inferred types
-	    end
-	 end
-	 if not p then
-	    break
-	 end
-	 if p == 'size' and ltok == 'long' and nn[p] == 'long' then
-	    nn[p] = 'long long'
-	 elseif p == 'attr' then
-	    -- nothing
-   elseif p=='type' and nn[p] then
-	    xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
-	 elseif nn[p] then
-	    xerror(options,n,"conflicting type specifiers '%s' and '%s'", nn[p], ltok)
-	 else
-	    nn[p] = ltok
-	 end
+            elseif yes or tt.tag ~= 'Type' or tt._def then
+               p = 'type'; ty = tt; ti() -- beware redefinition of inferred types
+            end
+         end
+         if not p then
+            break
+         end
+         if p == 'size' and ltok == 'long' and nn[p] == 'long' then
+            nn[p] = 'long long'
+         elseif p == 'attr' then
+            -- nothing
+      elseif p=='type' and nn[p] then
+            xerror(options,n,"conflicting types '%s' and '%s'", nn[p], ltok)
+         elseif nn[p] then
+            xerror(options,n,"conflicting type specifiers '%s' and '%s'", nn[p], ltok)
+         else
+            nn[p] = ltok
+         end
       end
       -- resolve multi-keyword type names
       if not nn.type then
-	 if nn.size or nn.sign then
-	    nn.type = 'int'
-	 elseif nn.complex then
-	    xwarning(options, n, "_Complex used without a type, assuming 'double'")
-	    nn.type = 'double'
-	 elseif nn.sclass then
-	    xwarning(options, n, "missing type specifier defaults to 'int'")
-	    nn.type = 'int'
-	 else
-	    xerror(options, n, "missing type specifier")
-	 end
+         if nn.size or nn.sign then
+            nn.type = 'int'
+         elseif nn.complex then
+            xwarning(options, n, "_Complex used without a type, assuming 'double'")
+            nn.type = 'double'
+         elseif nn.sclass then
+            xwarning(options, n, "missing type specifier defaults to 'int'")
+            nn.type = 'int'
+         else
+            xerror(options, n, "missing type specifier")
+         end
       end
       if nn.type == 'char' then
-	 if nn.sign then
-	    nn.type=nn.sign..' '..nn.type nn.sign=nil end
+         if nn.sign then
+            nn.type=nn.sign..' '..nn.type nn.sign=nil end
       elseif nn.type == 'int' then
-	 if nn.size then
-	    nn.type=nn.size..' '..nn.type nn.size=nil end
-	 if nn.sign then
-	    nn.type=nn.sign..' '..nn.type nn.sign=nil end
+         if nn.size then
+            nn.type=nn.size..' '..nn.type nn.size=nil end
+         if nn.sign then
+            nn.type=nn.sign..' '..nn.type nn.sign=nil end
       elseif nn.type == 'double' then
-	 if nn.size and nn.size:find('long') then
-	    nn.type=nn.size..' '..nn.type nn.size=nil end
-	 if nn.complex then
-	    nn.type=nn.complex..' '..nn.type nn.complex=nil end
+         if nn.size and nn.size:find('long') then
+            nn.type=nn.size..' '..nn.type nn.size=nil end
+         if nn.complex then
+            nn.type=nn.complex..' '..nn.type nn.complex=nil end
       elseif nn.type == 'float' then
-	 if nn.complex then
-	    nn.type='_Complex '..nn.type nn.complex=nil end
+         if nn.complex then
+            nn.type='_Complex '..nn.type nn.complex=nil end
       elseif type(nn.type)=='string' and nn.type:find('^__int%d+$') then
-	 if nn.sign then
-	    nn.type=nn.sign..' '..nn.type nn.sign=nil end
+         if nn.sign then
+            nn.type=nn.sign..' '..nn.type nn.sign=nil end
       end
       if nn.atomic then
          nn.type='_Atomic '..nn.type nn.atomic = nil -- could be narrower
@@ -2434,10 +2431,10 @@ local function parseDeclarations(options, globals, tokens, ...)
       local sclass = nn.sclass
       local smsg = "storage class '%s' is not appropriate in this context"
       if context == 'global' then
-	 xassert(sclass~='register' and sclass~='auto',
+         xassert(sclass~='register' and sclass~='auto',
                  options, n, smsg, sclass)
       elseif context == 'param' then
-	 xassert(sclass~='static' and sclass~='extern' and sclass~='typedef',
+         xassert(sclass~='static' and sclass~='extern' and sclass~='typedef',
                  options, n, smsg, sclass)
       end
       -- return
@@ -2445,7 +2442,7 @@ local function parseDeclarations(options, globals, tokens, ...)
       if nn.const then ty = addQualifier(ty, 'const') end
       if nn.volatile then ty = addQualifier(ty, 'volatile') end
       xassert(not nn.restrict, options, n,
-	      "qualifier '%s' is not adequate here", nn.restrict)
+              "qualifier '%s' is not adequate here", nn.restrict)
       return ty, nn
    end
 
@@ -2460,98 +2457,98 @@ local function parseDeclarations(options, globals, tokens, ...)
       local where = n
       local name
       local function parseRev()
-	 local ty = nil
-	 if isName(tok) then
-	    xassert(not name, options, n, "extraneous identifier '%s'", tok)
-	    name = tok
-	    ti()
-	 elseif tok == '*' or tok == '^' or tok == '&' then --pointer
-	    local block = tok == '^' or nil -- code blocks (apple)
-	    local ref = tok == '&' or nil   -- reference type
-	    ti()
-	    local nt, pt
-	    while tok=='const' or tok=='volatile'
-	    or specifierTable[tok]=='restrict' or isAttribute(tok) do
-	       nt = nt or Qualified{}
-	       if isAttribute(tok) then
-		  nt.attr = collectAttributes(nt.attr)
-	       else
-		  nt[specifierTable[tok]] = true
-		  ti()
-	       end
-	    end
-	    pt = parseRev()
-	    if nt then nt.t = pt; pt = nt; end
-	    ty = Pointer{t=pt, block=block, ref=ref}
-	 elseif tok == '(' then
-	    ti()
-	    local p = specifierTable[tok] or isTypeName(tok) or isAttribute(tok) or tok == ')'
-	    if abstract and p then
-	       ty = parsePrototype(ty,symtable,context,abstract)
-	    else
-	       attr = collectAttributes(attr)
-	       ty = parseRev()
-	       check(')') ti()
-	    end
-	 elseif tok ~= '[' then
-	    return ty
-	 end
-	 attr = collectAttributes(attr)
-	 while tok == '(' or tok == '[' and ti(1) ~= '[' do
-	    if tok == '(' then ti()
-	       ty = parsePrototype(ty,symtable,context,abstract)
-	       check(")") ti()
-	       ty.attr = collectAttributes(ty.attr)
-	    elseif tok == '[' then -- array
-	       ti()
-	       xassert(ty==nil or ty.tag ~= 'Function', options,n,
-		       "functions cannot return arrays (they can return pointers)")
-	       local nt = nil
-	       while specifierTable[tok] =='restrict' or tok == 'const'
-	       or tok == 'volatile' or options.dialect99 and tok == 'static' do
-		  xassert(ty==nil or ty.tag~='Array', options, n,
-			  "only the outer array indices can contain qualifiers")
-		  xassert(tok~='static' or context=='param', options, n,
-			  "static array qualifiers are only permitted in prototypes")
-		  nt = nt or Qualified{}
-		  nt[specifierTable[tok]] = true
-		  ti()
-	       end
-	       if tok == ']' then
-		  xassert(ty==nil or ty.tag~='Array', options, n,
-			  "only the outer array can be specified without a size")
-		  ty = Array{t=ty}
-		  ti()
-	       else
-		  local size = skipTo({},']',',',';')
-		  local v = tryEvaluateConstantExpression(options, n, size, symtable)
-		  xassert(v, options, n,
-			  "syntax error in array size specification")
-		  xassert(type(v)~='number' or v>=0, options, n,
-			  "invalid array size '%s'", v)
-		  check(']') ti()
-		  ty = Array{t=ty, size=v}
-	       end
-	       if nt then
-		  if nt.sclass then
-		     xassert(ty.size, options, n, "static in this context needs an array size")
-		     nt.static = ty.size
-		     nt.sclass = nil
-		  end
-		  nt.t = ty.t
-		  ty.t = nt
-	       end
-	    end
-	 end
-	 return ty
+         local ty = nil
+         if isName(tok) then
+            xassert(not name, options, n, "extraneous identifier '%s'", tok)
+            name = tok
+            ti()
+         elseif tok == '*' or tok == '^' or tok == '&' then --pointer
+            local block = tok == '^' or nil -- code blocks (apple)
+            local ref = tok == '&' or nil   -- reference type
+            ti()
+            local nt, pt
+            while tok=='const' or tok=='volatile'
+            or specifierTable[tok]=='restrict' or isAttribute(tok) do
+               nt = nt or Qualified{}
+               if isAttribute(tok) then
+                  nt.attr = collectAttributes(nt.attr)
+               else
+                  nt[specifierTable[tok]] = true
+                  ti()
+               end
+            end
+            pt = parseRev()
+            if nt then nt.t = pt; pt = nt; end
+            ty = Pointer{t=pt, block=block, ref=ref}
+         elseif tok == '(' then
+            ti()
+            local p = specifierTable[tok] or isTypeName(tok) or isAttribute(tok) or tok == ')'
+            if abstract and p then
+               ty = parsePrototype(ty,symtable,context,abstract)
+            else
+               attr = collectAttributes(attr)
+               ty = parseRev()
+               check(')') ti()
+            end
+         elseif tok ~= '[' then
+            return ty
+         end
+         attr = collectAttributes(attr)
+         while tok == '(' or tok == '[' and ti(1) ~= '[' do
+            if tok == '(' then ti()
+               ty = parsePrototype(ty,symtable,context,abstract)
+               check(")") ti()
+               ty.attr = collectAttributes(ty.attr)
+            elseif tok == '[' then -- array
+               ti()
+               xassert(ty==nil or ty.tag ~= 'Function', options,n,
+                       "functions cannot return arrays (they can return pointers)")
+               local nt = nil
+               while specifierTable[tok] =='restrict' or tok == 'const'
+               or tok == 'volatile' or options.dialect99 and tok == 'static' do
+                  xassert(ty==nil or ty.tag~='Array', options, n,
+                          "only the outer array indices can contain qualifiers")
+                  xassert(tok~='static' or context=='param', options, n,
+                          "static array qualifiers are only permitted in prototypes")
+                  nt = nt or Qualified{}
+                  nt[specifierTable[tok]] = true
+                  ti()
+               end
+               if tok == ']' then
+                  xassert(ty==nil or ty.tag~='Array', options, n,
+                          "only the outer array can be specified without a size")
+                  ty = Array{t=ty}
+                  ti()
+               else
+                  local size = skipTo({},']',',',';')
+                  local v = tryEvaluateConstantExpression(options, n, size, symtable)
+                  xassert(v, options, n,
+                          "syntax error in array size specification")
+                  xassert(type(v)~='number' or v>=0, options, n,
+                          "invalid array size '%s'", v)
+                  check(']') ti()
+                  ty = Array{t=ty, size=v}
+               end
+               if nt then
+                  if nt.sclass then
+                     xassert(ty.size, options, n, "static in this context needs an array size")
+                     nt.static = ty.size
+                     nt.sclass = nil
+                  end
+                  nt.t = ty.t
+                  ty.t = nt
+               end
+            end
+         end
+         return ty
       end
       -- get reversed type and reverse it back
       local rty = parseRev()
       while rty do
-	 local nty = rty.t
-	 rty.t = ty
-	 ty = rty
-	 rty = nty
+         local nty = rty.t
+         rty.t = ty
+         ty = rty
+         rty = nty
          -- syntax checks
          if ty.tag == 'Pointer' and ty.block then
             xassert(ty.t and ty.t.tag == 'Function', options, where,
@@ -2561,19 +2558,19 @@ local function parseDeclarations(options, globals, tokens, ...)
       attr = collectAttributes(attr)
       -- distribute inlines and attributes
       if extra.inline then
-	 local tt = ty
-	 while tt and tt.tag ~= 'Function' do tt=tt.t end
-	 xassert(tt, options, where, "only functions can be declared inline")
-	 tt.inline = true
+         local tt = ty
+         while tt and tt.tag ~= 'Function' do tt=tt.t end
+         xassert(tt, options, where, "only functions can be declared inline")
+         tt.inline = true
       end
       attr = tableAppend(extra.attr, attr)
       if attr then
-	 local tt = ty
-	 while tt.tag == 'Pointer' do tt=tt.t end
-	 if tt.tag ~= 'Function' and tt.tag ~= 'Struct' and tt.tag ~= 'Union' then tt = nil end
-	 if tt == nil and ty == 'Qualified' then tt = ty end
-	 if tt == nil then ty=Qualified{t=ty} tt=ty end
-	 if tt then tt.attr = attr end
+         local tt = ty
+         while tt.tag == 'Pointer' do tt=tt.t end
+         if tt.tag ~= 'Function' and tt.tag ~= 'Struct' and tt.tag ~= 'Union' then tt = nil end
+         if tt == nil and ty == 'Qualified' then tt = ty end
+         if tt == nil then ty=Qualified{t=ty} tt=ty end
+         if tt then tt.attr = attr end
       end
       -- return
       xassert(abstract or name, options, n, "an identifier was expected")
@@ -2587,36 +2584,36 @@ local function parseDeclarations(options, globals, tokens, ...)
       local lty, lextra = parseDeclarationSpecifiers(symtable,context,false)
       -- loop over declarators
       if isName(tok) or tok=='*' or tok=='&' or tok == '^' or tok=='(' or tok=='[' then
-	 -- parse declarator
-	 local name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
-	 -- first declarator may be a function definition
-	 if context == 'global' and name and typeIs(ty,'Function') and tok == '{' then
-	    local body = skipPar({})
-	    xassert(sclass ~= 'typedef', options, where,
-		    "storage class %s is not adequate for a function definition", sclass)
-	    processDeclaration(where, symtable, context, name, ty, sclass, body)
-	    return
-	 end
-	 -- process declarators
-	 while true do
-	    if typeIs(ty,'Function') then
-	       if not where then error() end
-	       processDeclaration(where, symtable, context, name, ty, sclass)
-	    else
-	       local init
-	       if tok == '=' then
-		  xassert(sclass ~= 'typedef', options, n, "a typedef cannot have an initializer")
-		  ti()
-		  init = skipTo({}, specifierTable, ';', ',')
-	       end
-	       processDeclaration(where, symtable, context, name, ty, sclass, init)
-	    end
-	    if tok ~= ',' then break else ti() end
-	    where = n
-	    name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
-	 end
+         -- parse declarator
+         local name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
+         -- first declarator may be a function definition
+         if context == 'global' and name and typeIs(ty,'Function') and tok == '{' then
+            local body = skipPar({})
+            xassert(sclass ~= 'typedef', options, where,
+                    "storage class %s is not adequate for a function definition", sclass)
+            processDeclaration(where, symtable, context, name, ty, sclass, body)
+            return
+         end
+         -- process declarators
+         while true do
+            if typeIs(ty,'Function') then
+               if not where then error() end
+               processDeclaration(where, symtable, context, name, ty, sclass)
+            else
+               local init
+               if tok == '=' then
+                  xassert(sclass ~= 'typedef', options, n, "a typedef cannot have an initializer")
+                  ti()
+                  init = skipTo({}, specifierTable, ';', ',')
+               end
+               processDeclaration(where, symtable, context, name, ty, sclass, init)
+            end
+            if tok ~= ',' then break else ti() end
+            where = n
+            name,ty,sclass = parseDeclarator(lty, lextra, symtable, context, false)
+         end
       else
-	 xassert(lextra.newtype, options, where, "empty declaration")
+         xassert(lextra.newtype, options, where, "empty declaration")
       end
       -- the end
       check(';') ti()
@@ -2627,30 +2624,30 @@ local function parseDeclarations(options, globals, tokens, ...)
       local ty = Function{t=rty}
       local i=0
       while tok ~= ')' do
-	 if tok == '...' then
-	    i = i + 1
-	    ty[i] = Pair{ellipsis=true}
-	    ti() check(')')
-	 else
-	    local lty, lextra = parseDeclarationSpecifiers(nsymtable, 'param', true)
-	    local pname, pty = parseDeclarator(lty, lextra, nsymtable, 'param', true)
-	    local sty = pty.tag == 'Qualified' and pty.t or pty
-	    if sty.tag == 'Type' and sty.n == 'void' then
-	       xassert(i==0 and not pname and tok==')' and pty == sty, options, n,
-		       "void in function parameters must appear first and alone")
-	       return ty
-	    else
-	       if pty.tag == 'Array' then
-		  pty = Pointer{t=pty.t}
-	       elseif pty.tag == 'Qualified' and pty.t.tag == 'Array' then
-		  pty.t = Pointer{t=pty.t.t} end
-	       i = i + 1
-	       local def
-	       if tok == '=' then ti() def=skipTo({}, specifierTable,';',',') end
-	       ty[i] = Pair{pty,pname,defval=def}
-	       if tok == ',' then ti() else check(',',')') end
-	    end
-	 end
+         if tok == '...' then
+            i = i + 1
+            ty[i] = Pair{ellipsis=true}
+            ti() check(')')
+         else
+            local lty, lextra = parseDeclarationSpecifiers(nsymtable, 'param', true)
+            local pname, pty = parseDeclarator(lty, lextra, nsymtable, 'param', true)
+            local sty = pty.tag == 'Qualified' and pty.t or pty
+            if sty.tag == 'Type' and sty.n == 'void' then
+               xassert(i==0 and not pname and tok==')' and pty == sty, options, n,
+                       "void in function parameters must appear first and alone")
+               return ty
+            else
+               if pty.tag == 'Array' then
+                  pty = Pointer{t=pty.t}
+               elseif pty.tag == 'Qualified' and pty.t.tag == 'Array' then
+                  pty.t = Pointer{t=pty.t.t} end
+               i = i + 1
+               local def
+               if tok == '=' then ti() def=skipTo({}, specifierTable,';',',') end
+               ty[i] = Pair{pty,pname,defval=def}
+               if tok == ',' then ti() else check(',',')') end
+            end
+         end
       end
       if i == 0 then ty.withoutProto = true end
       return ty
@@ -2670,67 +2667,67 @@ local function parseDeclarations(options, globals, tokens, ...)
       local where = n
       check('{') ti()
       while tok and tok ~= '}' do
-	 where = n
-	 local lty, lextra = parseDeclarationSpecifiers(symtable, context)
-	 xassert(lextra.sclass == nil, options, where,
+         where = n
+         local lty, lextra = parseDeclarationSpecifiers(symtable, context)
+         xassert(lextra.sclass == nil, options, where,
                  "storage class '%s' is not allowed here", lextra.sclass)
-	 if tok == ';' then -- anonymous member
-	    xassert(lty.tag=='Struct' or lty.tag=='Union' ,
-		    options, where, "empty declaration")
-	    ty[1+#ty] = Pair{lty}
-	 else
-	    while true do
-	       if tok == ':' then ti() -- unnamed bitfield
-		  local size = skipTo({},',',';')
-		  local v = tryEvaluateConstantExpression(options, where, size, symtable)
-		  xassert(v, options, where,
-			  "syntax error in bitfield specification")
-		  xassert(type(v)~='number' or v>=0, options, where,
-			  "invalid anonymous bitfield size (%s)", v)
-		  ty[1+#ty] = Pair{lty,bitfield=v}
-	       else
-		  local pname, pty = parseDeclarator(lty, lextra, symtable, context)
-		  if pty.tag == 'Array' and not pty.size then
-		     xwarning(options, where, "unsized arrays are not allowed here (ignoring)")
-		  elseif pty.tag == 'Function' then
-		     xerror(options, where, "member functions are not allowed in C")
-		  end
-		  if tok == ':' then ti()
-		     xassert(lty == pty, options, where, "bitfields must be of integral types")
-		     local size = skipTo({},',',';')
-		     local v = tryEvaluateConstantExpression(options,where,size,symtable)
-		     xassert(v, options, where,
-			     "syntax error in bitfield specification")
-		     xassert(type(v)~='number' or v>0, options, where,
-			     "invalid bitfield size (%s)", v)
-		     ty[1+#ty] = Pair{pty,pname,bitfield=v}
-		  else
-		     ty[1+#ty] = Pair{pty,pname}
-		  end
-	       end
-	       check(',',';')
-	       if tok == ',' then ti() else break end
-	    end
-	 end
-	 check(';','}')
-	 if tok == ';' then ti() end
+         if tok == ';' then -- anonymous member
+            xassert(lty.tag=='Struct' or lty.tag=='Union' ,
+                    options, where, "empty declaration")
+            ty[1+#ty] = Pair{lty}
+         else
+            while true do
+               if tok == ':' then ti() -- unnamed bitfield
+                  local size = skipTo({},',',';')
+                  local v = tryEvaluateConstantExpression(options, where, size, symtable)
+                  xassert(v, options, where,
+                          "syntax error in bitfield specification")
+                  xassert(type(v)~='number' or v>=0, options, where,
+                          "invalid anonymous bitfield size (%s)", v)
+                  ty[1+#ty] = Pair{lty,bitfield=v}
+               else
+                  local pname, pty = parseDeclarator(lty, lextra, symtable, context)
+                  if pty.tag == 'Array' and not pty.size then
+                     xwarning(options, where, "unsized arrays are not allowed here (ignoring)")
+                  elseif pty.tag == 'Function' then
+                     xerror(options, where, "member functions are not allowed in C")
+                  end
+                  if tok == ':' then ti()
+                     xassert(lty == pty, options, where, "bitfields must be of integral types")
+                     local size = skipTo({},',',';')
+                     local v = tryEvaluateConstantExpression(options,where,size,symtable)
+                     xassert(v, options, where,
+                             "syntax error in bitfield specification")
+                     xassert(type(v)~='number' or v>0, options, where,
+                             "invalid bitfield size (%s)", v)
+                     ty[1+#ty] = Pair{pty,pname,bitfield=v}
+                  else
+                     ty[1+#ty] = Pair{pty,pname}
+                  end
+               end
+               check(',',';')
+               if tok == ',' then ti() else break end
+            end
+         end
+         check(';','}')
+         if tok == ';' then ti() end
       end
       check("}") ti()
       ty.attr = collectAttributes(nn.attr)
       nn.attr = nil
       -- name anonymous structs or enums (avoiding anonymous unions)
       if not ttag and tok ~= ';' and hasOption(options,"-Ztag") then
-	 ttag = unique()
-	 tnam = kind .. " " .. ttag
-	 ty.n = ttag
+         ttag = unique()
+         tnam = kind .. " " .. ttag
+         ty.n = ttag
       end
       -- change tagged type as newtype
       if ttag then
-	 nn.newtype = true
-	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
-	 return namedType(symtable, tnam)
+         nn.newtype = true
+         processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
+         return namedType(symtable, tnam)
       else
-	 return ty
+         return ty
       end
    end
 
@@ -2749,46 +2746,46 @@ local function parseDeclarations(options, globals, tokens, ...)
       local where = n
       check('{') ti()
       repeat
-	 local nam = tok
-	 local init
-	 xassert(isName(nam),options,n,"identifier expected, got '%s'", tok)
+         local nam = tok
+         local init
+         xassert(isName(nam),options,n,"identifier expected, got '%s'", tok)
          collectAttributes(nil) -- parsed but lost for now
-	 if ti() == '=' then ti()
+         if ti() == '=' then ti()
             init = skipTo({},',','}')
-	    v = tryEvaluateConstantExpression(options, n, init, symtable)
-	    xassert(v,options,n,"invalid value for enum constant")
-	    a = 0
-	 end
-	 local x
-	 if type(v) == 'number' then
-	    x = v + a
-	 elseif a > 0 then
-	    x = string.format("%d+(%s)",a,v)
-	 else
-	    x = v
-	 end
-	 ty[i] = Pair{nam, init and v}
-	 a = a + 1
-	 i = i + 1
-	 processDeclaration(n, symtable, context, nam, ity, '[enum]', x)
-	 if tok == ',' then ti() else check(',','}') end
+            v = tryEvaluateConstantExpression(options, n, init, symtable)
+            xassert(v,options,n,"invalid value for enum constant")
+            a = 0
+         end
+         local x
+         if type(v) == 'number' then
+            x = v + a
+         elseif a > 0 then
+            x = string.format("%d+(%s)",a,v)
+         else
+            x = v
+         end
+         ty[i] = Pair{nam, init and v}
+         a = a + 1
+         i = i + 1
+         processDeclaration(n, symtable, context, nam, ity, '[enum]', x)
+         if tok == ',' then ti() else check(',','}') end
       until tok == nil or tok == '}'
       check('}') ti()
       ty.attr = collectAttributes(nn.attr)
       nn.attr = nil
       -- name anonymous structs or enums
       if not ttag and hasOption(options,"-Ztag") then
-	 ttag = unique()
-	 tnam = kind .. " " .. ttag
-	 ty.n = ttag
+         ttag = unique()
+         tnam = kind .. " " .. ttag
+         ty.n = ttag
       end
       -- change tagged type as newtype
       nn.newtype = true
       if ttag then
-	 processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
-	 return namedType(symtable, tnam)
+         processDeclaration(where, symtable, context, tnam, ty, '[typetag]')
+         return namedType(symtable, tnam)
       else
-	 return ty
+         return ty
       end
    end
 
@@ -2799,8 +2796,8 @@ local function parseDeclarations(options, globals, tokens, ...)
       local macros = options.macros
       local captable = macros and macros[1]
       if type(captable) == 'table' then
-	 for _,v in ipairs(captable) do coroutine.yield(CppEvent(v)) end
-	 macros[1] = {}
+         for _,v in ipairs(captable) do coroutine.yield(CppEvent(v)) end
+         macros[1] = {}
       end
    end
 
@@ -2816,10 +2813,10 @@ local function parseDeclarations(options, globals, tokens, ...)
    else
       -- main loop
       while tok do
-	 while tok == ';' do ti() end
-	 processMacroCaptures()
-	 parseDeclaration(globals,"global")
-	 processMacroCaptures()
+         while tok == ';' do ti() end
+         processMacroCaptures()
+         parseDeclaration(globals,"global")
+         processMacroCaptures()
       end
       return globals
    end
@@ -2834,7 +2831,7 @@ local function stringToType(s)
    local options = { silent=true, stringToType=true }
    local src = "<" .. s .. ">"
    local ss,t,n = pcall(parseDeclarations, options, {},
-		       filterSpaces, tokenizeLine, s, src, true)
+                       filterSpaces, tokenizeLine, s, src, true)
    if not ss then return nil end
    while t and t._def do t = t._def end
    return t, n
@@ -2849,11 +2846,11 @@ local function initialSymbols(options)
    local symbols = {}
    for _,v in ipairs(options) do
       if v:find("^%-T") then
-	 local d = v:gsub("^%-T%s*(.-)%s*$")
-	 xassert(d and d:find("[A-Za-z_$][A-Za-z0-9_$]*"),
-		 options,"<commandline>",
-		 "option -T must be followed by a valid identifier")
-	 symbols[d] = TypeDef{n=d}
+         local d = v:gsub("^%-T%s*(.-)%s*$")
+         xassert(d and d:find("[A-Za-z_$][A-Za-z0-9_$]*"),
+                 options,"<commandline>",
+                 "option -T must be followed by a valid identifier")
+         symbols[d] = TypeDef{n=d}
       end
    end
    return symbols
@@ -2877,14 +2874,14 @@ local function declarationIterator(options, lines, prefix)
    options.macros = macros
    options.symbols = symbols
    local di = wrap(options,
-		   parseDeclarations, symbols,
-		   filterSpaces,
-		   expandMacros, macros,
-		   tokenize,
-		   processDirectives, macros,
-		   eliminateComments,
-		   joinLines,
-		   yieldLines, lines, prefix)
+                   parseDeclarations, symbols,
+                   filterSpaces,
+                   expandMacros, macros,
+                   tokenize,
+                   processDirectives, macros,
+                   eliminateComments,
+                   joinLines,
+                   yieldLines, lines, prefix)
    return di, symbols, macros
 end
 
@@ -2899,10 +2896,10 @@ local function parse(filename, outputfile, options)
    if io.type(outputfile) ~= 'file' then
       assert(type(outputfile) == 'string')
       if outputfile == '-' then
-	 outputfile = io.output()
+         outputfile = io.output()
       else
-	 closeoutputfile = true
-	 outputfile = io.open(outputfile,"w")
+         closeoutputfile = true
+         outputfile = io.open(outputfile,"w")
       end
    end
    assert(io.type(outputfile) == 'file')
